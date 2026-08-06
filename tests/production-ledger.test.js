@@ -38,6 +38,7 @@ test('begin transaction builds context and locks the chapter before drafting', (
   assert.ok(fs.existsSync(path.join(project, 'state', 'context-pack.md')));
   const current = status(project);
   assert.equal(current.transaction.phase, 'drafting');
+  assert.equal(current.has_active_transaction, true);
   assert.equal(current.next_action, 'finish --chapter 1');
 });
 
@@ -58,7 +59,9 @@ test('finish records failures and commits only after the hard length gate passes
   writeChapterAndState(project, 8);
   report = finish(project, { chapter: '1' });
   assert.equal(report.ok, true, JSON.stringify(report.errors));
-  assert.equal(status(project).transaction.phase, 'completed');
+  const completed = status(project);
+  assert.equal(completed.transaction.phase, 'completed');
+  assert.equal(completed.has_active_transaction, false);
   assert.ok(fs.readFileSync(path.join(project, 'state', 'production-ledger.jsonl'), 'utf8').includes('chapter_committed'));
 });
 

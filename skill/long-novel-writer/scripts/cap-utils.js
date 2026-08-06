@@ -52,11 +52,15 @@ function readDocuments(input) {
 
 function countText(text) {
   const body = text.replace(/^---[\s\S]*?---\s*/m, '').replace(/^#{1,6}\s+.*$/gm, '');
+  const dialogueLine = (line) => (
+    /[“「『][^”」』\r\n]*[”」』]/.test(line)
+    || /"[^"\r\n]*[\u3400-\u9fff][^"\r\n]*"/.test(line)
+  );
   return {
     chinese_chars: (body.match(/[\u3400-\u9fff]/g) || []).length,
     non_whitespace_chars: (body.match(/\S/g) || []).length,
     paragraphs: body.split(/\r?\n\s*\r?\n/).filter((x) => x.trim()).length,
-    dialogue_lines: body.split(/\r?\n/).filter((x) => /[“「『].+[”」』]/.test(x)).length,
+    dialogue_lines: body.split(/\r?\n/).filter(dialogueLine).length,
   };
 }
 

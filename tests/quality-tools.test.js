@@ -32,3 +32,8 @@ test('text counting distinguishes Chinese and non-whitespace characters', () => 
   assert.equal(counts.dialogue_lines, 1);
   assert.ok(counts.non_whitespace_chars > counts.chinese_chars);
 });
+
+test('text counting recognizes straight double quotes used by generated Chinese prose', () => {
+  const counts = countText('# 标题\n\n"三遍了。"何方说，"这捆线跑不了。"\n\nHe said "hello".');
+  assert.equal(counts.dialogue_lines, 1);
+});

@@ -180,8 +180,9 @@ function status(projectInput) {
   const ledgerPath = path.join(project, LEDGER_FILE);
   const ledger = fs.existsSync(ledgerPath) ? fs.readFileSync(ledgerPath, 'utf8').split(/\r?\n/).filter(Boolean).slice(-10).map((line) => JSON.parse(line)) : [];
   const nextChapter = Number(state.updated_through || 0) + 1;
-  const next_action = transaction.phase === 'drafting' ? `finish --chapter ${transaction.chapter}` : `begin --chapter ${nextChapter}`;
-  return { ok: true, command: 'status', project, updated_through: Number(state.updated_through || 0), transaction, recent_events: ledger, next_action };
+  const has_active_transaction = transaction.phase === 'drafting';
+  const next_action = has_active_transaction ? `finish --chapter ${transaction.chapter}` : `begin --chapter ${nextChapter}`;
+  return { ok: true, command: 'status', project, updated_through: Number(state.updated_through || 0), has_active_transaction, transaction, recent_events: ledger, next_action };
 }
 
 function run(argv = process.argv.slice(2)) {
