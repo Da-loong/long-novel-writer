@@ -121,6 +121,12 @@ node <技能目录>/scripts/rank-scan.js --platform fanqie --dry-run
 
 正文文件名固定为 `manuscript/ch-XXXX-标题.md`，章号从 `0001` 开始补零为四位。第 1 章同样先运行 `context-pack.js --chapter 1`；它会从 `settings/` 与 `outline/` 生成首章上下文包，不依赖前置正文。章纲表格必须保持 9 列，单元格内不要写 `|`。
 
+用户明确章长为 2500–3500 个中文字符时，写后使用完整门禁命令：
+
+```powershell
+node <技能目录>/scripts/chapter-gate.js <项目目录> --stage post --chapter <N> --min-chars 2500 --max-chars 3500
+```
+
 需要体裁语感时读取对应正文卡；需要上下文分层与中断恢复时读取 `context-and-gates.md`；需要技巧时读取 `dialogue-mastery.md`、`writing-craft.md`、`hooks-*.md` 和 `format-and-structure.md`。
 
 ## Phase 5：质量检查
