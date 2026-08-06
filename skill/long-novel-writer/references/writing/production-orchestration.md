@@ -49,6 +49,7 @@ node scripts/chapter-transaction.js finish <项目目录> --chapter 42 --approve
 ## 批次与检查点
 
 - 30 万字以上的新项目先产出黄金三章试读包；真人冷读通过前，不得开始第 4 章。用 `scripts/pilot-review.js` 记录 approve/reject，模型不得自批。
+- 每章写后运行 `scripts/reader-metrics.js`，把它当作读者预警而非文学评分；与 `chapter-gate.js` 的工程门禁分开记录。
 - 正文因果链保持顺序写作；可并行的是审校、事实抽取和不同评审视角。
 - 单批默认 1–3 章；稳定后最多 5 章，限制错误传播半径。
 - 第 6 章做第一次“新鲜度衰减”检查；以后每 10 章检查一次句式、开场、章尾、场景类型和信息传递方式的重复。

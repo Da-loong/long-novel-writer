@@ -36,6 +36,8 @@ function templates(meta) {
     'state/character-state.md': '# 人物状态\n\n| 人物 | 地点 | 身体 | 情绪 | 资源 | 已知信息 | 关系变化 | 截止章 |\n|---|---|---|---|---|---|---|---:|\n',
     'state/timeline.md': '# 时间线\n\n| 时间 | 事件 | 地点 | 参与者 | 证据章节 |\n|---|---|---|---|---|\n',
     'state/unresolved-hooks.md': '# 未解钩子\n\n| ID | 首次出现章 | 问题 | 读者预期 | 回收窗口 | 状态 |\n|---|---:|---|---|---|---|\n',
+    'state/feedback-ledger.md': '# 反馈台账\n\n> 只记录真实读者/用户反馈；每条反馈都要转成规则、修改动作和复验结果。\n\n| 日期 | 反馈原句 | 问题层 | 规则化动作 | 复验章节 | 状态 |\n|---|---|---|---|---:|---|\n',
+    'state/handoff-current.md': '# 当前会话交接\n\n尚未生成。运行 `node scripts/handoff.js <项目目录>`。\n',
     'state/chapter-transaction.json': `${JSON.stringify({ schema_version: '1.0', phase: 'idle', chapter: null, updated_at: null }, null, 2)}\n`,
     'state/pilot-verdict.json': `${JSON.stringify({ schema_version: '1.0', status: 'pending', reviewed_through: 0, reviewer: null, reason: null, updated_at: null }, null, 2)}\n`,
     'state/production-ledger.jsonl': '',

@@ -22,6 +22,10 @@ description: 长篇网络小说的一体化创作与项目管理技能。用于�
 
 若用户给出明确章节、字数和设定，直接执行对应阶段；不要强制重跑前序阶段。若缺少少量参数，用类型惯例形成紧凑假设并在交付开头列出。
 
+## 先诊断再调用模块
+
+写作前先判断故障位于读者、承诺、结构、Canon 还是表达层，再读取 `references/writing/module-routing.md` 指定的一个主模块和一个校验模块。不要把整套参考资料一次性加载；项目的 `settings/`、`outline/`、`state/` 文件始终优先于通用模板。相同问题第二次出现时，必须沉淀到反馈台账并增加可复验动作。
+
 ## 建立项目
 
 默认在当前工作区创建 `<书名或项目名>/`；清理名称中的路径字符，不覆盖非空目录。优先运行确定性初始化器：
@@ -52,6 +56,8 @@ node <技能目录>/scripts/init-project.js --root <工作区> --title <书名> 
 │  ├─ character-state.md
 │  ├─ timeline.md
 │  ├─ unresolved-hooks.md
+│  ├─ feedback-ledger.md       # 用户/读者反馈→规则→复验
+│  ├─ handoff-current.md       # 可恢复的跨会话交接
 │  ├─ chapter-transaction.json # 当前章事务、Canon 锁与门禁结果
 │  └─ production-ledger.jsonl  # 逐章通过/失败/中止审计账本
 ├─ analysis/
@@ -110,7 +116,7 @@ node <技能目录>/scripts/rank-scan.js --platform fanqie --dry-run
 
 黄金三章依次完成：第 1 章异常与明确欲望；第 2 章代价与行动；第 3 章不可逆选择与长线承诺。按题材读取 `references/writing/genre-prose-cards/` 中对应卡片，并按需读取人物、大纲、钩子、情感与读者画像参考。
 
-开新书时同时读取 `references/writing/platform-pilot-and-readability.md`。黄金三章必须先证明“普通读者看得懂、愿意追”，再证明设定复杂；每章新增需记忆概念默认不超过 3 个，连续解释不超过 150 个中文字符，且不得提前消费下一章章拍。30 万字以上项目写完第 3 章后暂停，由目标读者直接冷读正文；模型自评和脚本通过不能替代真人放行。
+开新书时同时读取 `references/writing/platform-pilot-and-readability.md` 与 `references/writing/reader-metrics.md`。黄金三章必须先证明“普通读者看得懂、愿意追”，再证明设定复杂；每章新增需记忆概念默认不超过 3 个，连续解释不超过 150 个中文字符，且不得提前消费下一章章拍。30 万字以上项目写完第 3 章后暂停，由目标读者直接冷读正文；模型自评和脚本通过不能替代真人放行。
 
 ## Phase 4：正文写作
 
@@ -122,6 +128,10 @@ node <技能目录>/scripts/rank-scan.js --platform fanqie --dry-run
 6. 批量写作默认每批 1–3 章；逐章落盘，禁止用“略”“待补”“战斗若干”代替正文。
 7. 交付前统计有效中文字符/词数，核对用户要求；有明确章长区间时，写后门同时传 `--min-chars` 与 `--max-chars`，超限则拆分或收束本章。
 8. 写完立即更新当前状态、机器状态、人物状态、时间线、未解钩子和伏笔台账；运行 `scripts/chapter-transaction.js` 的 `finish` 命令。它通过字数、连续性、状态和 Canon 变更检查并写入生产账本后，才开始下一章。
+
+9. 交接前运行 `node scripts/handoff.js <项目目录>`，把最新状态、未解钩子、事务、试读 verdict 和下一动作写入 `state/handoff-current.md`；下一次会话先读该文件，再按模块路由补充上下文。
+
+写后追加 `node scripts/reader-metrics.js <章节>`；它只提供开头延迟、解释块、对白比例和章尾形状的证据。任何预警先做结构/读者判断，不得用删词把预警刷成通过。
 
 机械 `finish` 只表示工程状态完整，不表示读者体验合格。30 万字以上项目开始第 4 章前，先记录真人试读结论：
 
