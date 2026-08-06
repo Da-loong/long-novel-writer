@@ -4,6 +4,8 @@
   "private": true,
   "description": "Industrial long-form Chinese web-fiction skill with deterministic project, continuity, QA, and ranking tools.",
   "license": "MIT",
+  "repository": "github:Da-loong/long-novel-writer",
+  "homepage": "https://github.com/Da-loong/long-novel-writer#readme",
   "engines": {
     "node": ">=20"
   },

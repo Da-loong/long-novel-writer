@@ -82,7 +82,7 @@
   ],
   "issues": [
     {"id": "P2-LIVE-DRIFT", "severity": "P2", "status": "open", "summary": "Official ranking DOMs can drift; CI uses fixtures and a local Firecrawl mock, not paid live requests."},
-    {"id": "P2-REMOTE", "severity": "P2", "status": "open", "summary": "Repository is locally open-source ready but has not yet been pushed to a user-selected GitHub remote."},
+    {"id": "P2-REMOTE", "severity": "P2", "status": "closed", "summary": "Public repository published at https://github.com/Da-loong/long-novel-writer."},
     {"id": "P2-FORWARD", "severity": "P2", "status": "open", "summary": "No independent fresh-agent prose forward test is recorded in this run."}
   ]
 }
