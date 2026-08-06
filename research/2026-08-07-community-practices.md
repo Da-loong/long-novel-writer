@@ -1,6 +1,6 @@
 # X / GitHub 长篇 AI 写作实践调研
 
-采集时间：2026-08-07（Asia/Shanghai）  
+采集时间：2026-08-07（Asia/Shanghai）
 目标：为 `long-novel-writer` 补齐百万字生产中的调度、记忆、Canon、质量债务和恢复机制。
 
 ## 样本选择
