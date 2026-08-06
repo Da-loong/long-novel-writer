@@ -80,7 +80,12 @@ function gate(projectInput, options = {}) {
       const text = fs.readFileSync(path.join(manuscript, chapterName), 'utf8');
       const counts = countText(text);
       const minimum = Number.parseInt(options['min-chars'] || '1200', 10);
+      const maximum = options['max-chars'] === undefined ? null : Number.parseInt(options['max-chars'], 10);
+      if (!Number.isFinite(minimum) || minimum <= 0) throw new CliError('INVALID_MIN_CHARS', 'min-chars 必须为正整数', { value: options['min-chars'] });
+      if (maximum !== null && (!Number.isFinite(maximum) || maximum <= 0)) throw new CliError('INVALID_MAX_CHARS', 'max-chars 必须为正整数', { value: options['max-chars'] });
+      if (maximum !== null && maximum < minimum) throw new CliError('INVALID_CHAR_RANGE', 'max-chars 不得小于 min-chars', { minimum, maximum });
       if (counts.chinese_chars < minimum) add('error', 'CHAPTER_TOO_SHORT', relative, `${counts.chinese_chars} < ${minimum} Chinese characters`);
+      if (maximum !== null && counts.chinese_chars > maximum) add('error', 'CHAPTER_TOO_LONG', relative, `${counts.chinese_chars} > ${maximum} Chinese characters`);
       if (/(?:TODO|TBD|待补|此处略|若干字|省略|占位|待续)/i.test(text)) add('error', 'PLACEHOLDER_CONTENT', relative, 'draft contains placeholder content');
       const duplicateRatio = duplicateParagraphRatio(text);
       if (duplicateRatio > 0.12) add('error', 'DUPLICATE_PARAGRAPHS', relative, `ratio=${duplicateRatio.toFixed(3)}`);
@@ -92,7 +97,7 @@ function gate(projectInput, options = {}) {
 
 function run(argv = process.argv.slice(2)) {
   const args = argsOf(argv);
-  if (!args.project) throw new CliError('USAGE', '用法: node chapter-gate.js <项目目录> --stage pre|post --chapter N [--min-chars 1200]');
+  if (!args.project) throw new CliError('USAGE', '用法: node chapter-gate.js <项目目录> --stage pre|post --chapter N [--min-chars 1200] [--max-chars 3500]');
   const report = gate(args.project, args);
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   if (!report.ok) process.exitCode = 3;

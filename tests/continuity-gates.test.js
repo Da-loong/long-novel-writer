@@ -83,3 +83,15 @@ test('post gate requires manuscript quality and committed state', () => {
   report = gate(project, { stage: 'post', chapter: '1', 'min-chars': '100' });
   assert.equal(report.ok, true, JSON.stringify(report.errors));
 });
+
+test('post gate enforces an optional maximum chapter length', () => {
+  const project = initializedProject();
+  const manuscript = path.join(project, 'manuscript');
+  fs.writeFileSync(path.join(manuscript, 'ch-0001-first.md'), `# 第一章\n\n${'夜色压住码头，林舟握紧账本向前走。'.repeat(30)}\n`, 'utf8');
+  const stateFile = path.join(project, 'state', 'project-state.json');
+  const state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); state.updated_through = 1;
+  fs.writeFileSync(stateFile, JSON.stringify(state, null, 2), 'utf8');
+  fs.writeFileSync(path.join(project, 'state', 'current-state.md'), '# 当前状态\n\nupdated_through: 1\n', 'utf8');
+  const report = gate(project, { stage: 'post', chapter: '1', 'min-chars': '100', 'max-chars': '200' });
+  assert.ok(report.errors.some((item) => item.code === 'CHAPTER_TOO_LONG'));
+});

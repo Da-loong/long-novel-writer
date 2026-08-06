@@ -55,10 +55,10 @@ node scripts/chapter-gate.js <项目目录> --stage pre --chapter 42
 再运行：
 
 ```powershell
-node scripts/chapter-gate.js <项目目录> --stage post --chapter 42 --min-chars 1800
+node scripts/chapter-gate.js <项目目录> --stage post --chapter 42 --min-chars 1800 --max-chars 3500
 ```
 
-后门检查章文件、目标字数、占位文本、重复段落、缺章和状态提交。`--min-chars` 按用户约定或平台章长设置，不以统一默认值覆盖明确要求。
+后门检查章文件、目标字数、占位文本、重复段落、缺章和状态提交。`--min-chars` 与可选的 `--max-chars` 按用户约定或平台章长设置，不以统一默认值覆盖明确要求。
 
 ## 中断恢复
 
