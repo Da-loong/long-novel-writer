@@ -51,7 +51,9 @@ node <技能目录>/scripts/init-project.js --root <工作区> --title <书名> 
 │  ├─ project-state.json      # 机器可读版本、项目参数、落盘章号
 │  ├─ character-state.md
 │  ├─ timeline.md
-│  └─ unresolved-hooks.md
+│  ├─ unresolved-hooks.md
+│  ├─ chapter-transaction.json # 当前章事务、Canon 锁与门禁结果
+│  └─ production-ledger.jsonl  # 逐章通过/失败/中止审计账本
 ├─ analysis/
 │  ├─ trend-report.md
 │  ├─ breakdown.md
@@ -110,14 +112,14 @@ node <技能目录>/scripts/rank-scan.js --platform fanqie --dry-run
 
 ## Phase 4：正文写作
 
-1. 先从章纲提取本章“承诺—阻力—变化—钩子”及人物/道具/伏笔查询词；运行 `scripts/context-pack.js` 生成目标章上下文包，再运行 `scripts/chapter-gate.js` 的 `--stage pre`。门禁失败时修复输入，不越过失败继续批量写。
+1. 先从章纲提取本章“承诺—阻力—变化—钩子”及人物/道具/伏笔查询词；优先运行 `scripts/chapter-transaction.js` 的 `begin` 命令，让脚本自动生成上下文包、执行写前门并锁定 Canon。门禁失败时修复输入，不越过失败继续批量写。
 2. 让段落承担动作、观察、判断或关系变化；删除只复述情绪的句子。
 3. 用可见选择体现人物，不用作者替人物解释。
 4. 对话必须包含目的、潜台词和地位变化；角色说话方式可区分。
 5. 场景至少发生一个不可撤销的小变化；章尾改变问题、风险或认知。
 6. 批量写作默认每批 1–3 章；逐章落盘，禁止用“略”“待补”“战斗若干”代替正文。
 7. 交付前统计有效中文字符/词数，核对用户要求；有明确章长区间时，写后门同时传 `--min-chars` 与 `--max-chars`，超限则拆分或收束本章。
-8. 写完立即更新当前状态、机器状态、人物状态、时间线、未解钩子和伏笔台账；运行 `scripts/chapter-gate.js` 的 `--stage post`，通过后才开始下一章。
+8. 写完立即更新当前状态、机器状态、人物状态、时间线、未解钩子和伏笔台账；运行 `scripts/chapter-transaction.js` 的 `finish` 命令。它通过字数、连续性、状态和 Canon 变更检查并写入生产账本后，才开始下一章。
 
 正文文件名固定为 `manuscript/ch-XXXX-标题.md`，章号从 `0001` 开始补零为四位。第 1 章同样先运行 `context-pack.js --chapter 1`；它会从 `settings/` 与 `outline/` 生成首章上下文包，不依赖前置正文。章纲表格必须保持 9 列，单元格内不要写 `|`。
 
@@ -127,7 +129,15 @@ node <技能目录>/scripts/rank-scan.js --platform fanqie --dry-run
 node <技能目录>/scripts/chapter-gate.js <项目目录> --stage post --chapter <N> --min-chars 2500 --max-chars 3500
 ```
 
-需要体裁语感时读取对应正文卡；需要上下文分层与中断恢复时读取 `context-and-gates.md`；需要技巧时读取 `dialogue-mastery.md`、`writing-craft.md`、`hooks-*.md` 和 `format-and-structure.md`。
+连续生产首选完整事务：
+
+```powershell
+node <技能目录>/scripts/chapter-transaction.js begin <项目目录> --chapter <N> --query "人物 道具 伏笔" --min-chars 2500 --max-chars 3500
+# 写作并更新 state 后
+node <技能目录>/scripts/chapter-transaction.js finish <项目目录> --chapter <N>
+```
+
+需要体裁语感时读取对应正文卡；连续生成、Canon 锁和中断恢复时读取 `production-orchestration.md` 与 `context-and-gates.md`；需要技巧时读取 `dialogue-mastery.md`、`writing-craft.md`、`hooks-*.md` 和 `format-and-structure.md`。
 
 ## Phase 5：质量检查
 
@@ -145,9 +155,12 @@ node scripts/check-degeneration.js <章节或目录> --json
 node scripts/normalize-punctuation.js <章节或目录> --check
 node scripts/cap-utils.js count <章节或目录>
 node scripts/validate-project.js <项目目录>
+node scripts/chapter-transaction.js status <项目目录>
 ```
 
 检查脚本只提供线索，不做机械删改。标点确需落盘时运行 `normalize-punctuation.js <路径> --write`，默认先生成 `.bak` 并原子替换；若要保留源目录，使用 `--out-dir <目录>`。把严重问题、证据片段、建议动作和复核结果写入 `analysis/qa-report.md`。
+
+第 6 章检查一次新鲜度衰减，之后每 10 章做冷读与跨章重复检查；每卷做读者承诺、角色弧、问题/承诺、伏笔、节奏和 Canon 冲突审计。正文因果链保持顺序写作，审校视角可并行。相同失败出现两次，就把它沉淀为规则或确定性测试。
 
 ## Phase 6：去 AI 痕迹七道门
 

@@ -37,7 +37,7 @@ flowchart TB
       settings["settings/<br/>故事圣经 · 人物 · 关系<br/>读者契约 · 文体"]
       outline["outline/<br/>全书 / 卷 / 章纲<br/>伏笔台账"]
       manuscript["manuscript/<br/>ch-XXXX-title.md"]
-      state["state/<br/>机器状态 · 人物状态<br/>时间线 · 未解钩子"]
+      state["state/<br/>机器状态 · 人物状态 · 时间线<br/>章节事务 · Canon 锁 · 生产账本"]
       reports["analysis/ + import/<br/>趋势 · 拆书 · QA<br/>旧稿映射"]
       settings --> outline --> manuscript --> state
       state -. "证据回写" .-> reports
@@ -68,11 +68,13 @@ flowchart TB
 
     subgraph transaction["逐章事务边界"]
       direction LR
+      begin["begin<br/>生成上下文 + 锁定 Canon"]
       pre{"写作前门"}
       draft["生成并落盘本章"]
       commit["提交状态台账"]
       post{"写作后门"}
       next["进入下一章"]
+      begin --> pre
       pre -- "通过" --> draft --> commit --> post
       post -- "通过" --> next
       pre -- "缺章纲 / 旧上下文" --> repair["修复输入"]
@@ -80,7 +82,7 @@ flowchart TB
       repair --> pre
       repair2 --> post
     end
-    pack --> pre
+    pack --> begin
     next --> p4
 
     subgraph tools["确定性工具层"]
@@ -90,6 +92,7 @@ flowchart TB
       validate["validate-project"]
       context["context-pack"]
       gate["chapter-gate"]
+      ledger["chapter-transaction<br/>begin / finish / status / abort"]
       inventory["import-inventory"]
       qa["AI / 退化检查<br/>字符统计"]
       normalize["标点规范化<br/>备份 + 原子写入"]
@@ -99,13 +102,14 @@ flowchart TB
     validate --> state
     context --> pack
     gate --> transaction
+    ledger --> transaction
     inventory --> reports
     qa --> p5
     normalize --> p6
 
     subgraph engineering["工程化与开源交付"]
       direction LR
-      tests["37 项单元 / 集成 / 场景测试"]
+      tests["46 项单元 / 集成 / 场景测试"]
       eval["哈希绑定评测<br/>8.80 / 10"]
       ci["GitHub Actions<br/>Windows / Ubuntu × Node 20 / 22"]
       install["哈希安装器<br/>备份 · 回滚 · 镜像同步"]
@@ -127,5 +131,5 @@ flowchart TB
     class p1,p2,p3,p4,p5,p6 phase;
     class official,firecrawl,offline,snapshot,settings,outline,manuscript,state,reports,warm,hot,cold,pack data;
     class pre,post,repair,repair2 gate;
-    class init,rank,validate,context,gate,inventory,qa,normalize tool;
+    class init,rank,validate,context,gate,ledger,inventory,qa,normalize tool;
     class tests,eval,ci,install,github engineering;

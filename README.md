@@ -10,7 +10,7 @@
 
 - 版本：`0.2.0-rc.1`
 - 初始基线：`7.5/10`
-- 当前仓库评测：`8.80/10`（41 项自动测试通过，证据与当前技能源码哈希绑定）
+- 当前仓库评测：`8.80/10`（46 项自动测试通过，证据与当前技能源码哈希绑定）
 - 发布门槛：任务级加权评测 `>= 8.5/10`，且无 P0、P1 未关闭问题
 - 支持环境：Windows、Linux；Node.js 20+
 - GitHub：公开仓库已建立；以 `main` 分支 CI 和发布门禁作为合并基线
@@ -21,7 +21,7 @@
 
 - 从开书、读者契约、人物/世界规则、大纲到逐章正文的统一路由。
 - 32 类差异化题材卡，每张包含长篇循环、黄金三章、升级刻度、状态字段和失误预警。
-- 项目初始化、状态校验、Hot/Warm/Cold 上下文打包、章节写作前门与落盘后门。
+- 项目初始化、状态校验、Hot/Warm/Cold 上下文打包、章节事务、Canon 哈希锁、写作前门与落盘后门。
 - JSON、JSONL、HTML table、CSV/TSV/pipe 榜单导入；Firecrawl v2 结构化抓取、请求预览、原始证据和空结果阻断。
 - 旧稿哈希清点、章节标题映射、缺章/重复章/编码损坏诊断。
 - AI 套路线索、退化/占位/重复检测、字符统计和带备份的原子标点规范化。
@@ -80,17 +80,16 @@ node "$skill\scripts\init-project.js" --root . --title "雾港来信" --genre "�
 # 扫榜：先 dry-run 核对请求，不消耗 Firecrawl 额度
 node "$skill\scripts\rank-scan.js" --platform fanqie --dry-run
 
-# 逐章事务：打包上下文 → 写作前门 → 写作与状态提交 → 写作后门
-node "$skill\scripts\context-pack.js" .\雾港来信 --chapter 1 --query "林舟 账本"
-node "$skill\scripts\chapter-gate.js" .\雾港来信 --stage pre --chapter 1
-node "$skill\scripts\chapter-gate.js" .\雾港来信 --stage post --chapter 1 --min-chars 1800
+# 逐章事务：begin 自动打包上下文并过前门；写作和状态提交后由 finish 验收
+node "$skill\scripts\chapter-transaction.js" begin .\雾港来信 --chapter 1 --query "林舟 账本" --min-chars 2500 --max-chars 3500
+node "$skill\scripts\chapter-transaction.js" finish .\雾港来信 --chapter 1
 ```
 
 ## 已知限制
 
 - Firecrawl 云端实时扫榜需要本地配置 `FIRECRAWL_API_KEY`；自部署实例可配置 `FIRECRAWL_API_URL`。
 - 没有凭证时只执行请求预览与离线导入测试，不伪造实时榜单结果。
-- 三个调研的小说项目没有发现明确许可证，本仓库只借鉴架构思想，不复制其代码或文本。
+- 调研样本包含 AGPL 与许可证未声明项目；本仓库只提炼架构机制，不复制其代码或文本。
 - 平台 DOM 会变化；CI 使用固定夹具和本地 Firecrawl mock，不消耗云端额度，也不声称持续监控线上榜单。
 - `ciweimao` 的稳定官方榜单入口尚未核验，必须显式传入 URL。
 - 当前未记录独立新 Agent 的正文盲测；仓库量表已过门槛，但该 P2 证据缺口仍公开保留。
