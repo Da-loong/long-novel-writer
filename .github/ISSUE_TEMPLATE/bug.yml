@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible skill, script, or evidence failure
+title: "[bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: Task and route
+      description: What user task triggered the problem and which phase/script ran?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Include minimal commands, fixture shape, exit code, and structured error. Remove secrets and private manuscript text.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node version, Codex surface, and skill version
+    validations:
+      required: true

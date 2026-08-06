@@ -1,0 +1,19 @@
+{
+  "name": "long-novel-writer-skill",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Industrial long-form Chinese web-fiction skill with deterministic project, continuity, QA, and ranking tools.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node tools/run-tests.mjs",
+    "lint": "node tools/check-js.mjs",
+    "check:skill": "node tools/check-skill.mjs",
+    "eval": "node tools/evaluate.mjs",
+    "install:skill": "node tools/sync-install.mjs",
+    "release:check": "node tools/evaluate.mjs --release",
+    "verify": "npm run lint && npm run check:skill && npm test && npm run eval"
+  }
+}

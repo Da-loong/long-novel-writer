@@ -1,0 +1,73 @@
+#!/usr/bin/env node
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const { CliError, emitError, atomicWrite } = require('./cap-utils');
+
+function argsOf(argv) {
+  const args = {};
+  for (let i = 0; i < argv.length; i++) if (argv[i].startsWith('--')) args[argv[i].slice(2)] = argv[++i];
+  return args;
+}
+
+function safeName(value) {
+  const cleaned = String(value || '').normalize('NFKC').replace(/[<>:"/\\|?*\x00-\x1f]/g, '-').replace(/\.+$/g, '').trim();
+  if (!cleaned || cleaned === '.' || cleaned === '..') throw new CliError('INVALID_TITLE', '书名清理后为空', { title: value });
+  return cleaned.slice(0, 80);
+}
+
+function md(title, fields) {
+  return `# ${title}\n\n${fields.map(([key, value]) => `## ${key}\n\n${value}\n`).join('\n')}`;
+}
+
+function templates(meta) {
+  const pending = '待首次策划填写；未知项须显式标为“未知”，不得伪造。';
+  return {
+    'settings/story-bible.md': md('故事圣经', [['项目', meta.title], ['题材', meta.genre], ['一句话卖点', pending], ['世界规则', pending], ['边界与禁区', pending]]),
+    'settings/characters.md': md('人物表', [['主角', pending], ['主要配角', pending], ['角色弧线', pending]]),
+    'settings/relations.md': md('关系台账', [['关系边', '记录：角色A｜角色B｜当前张力｜最近变化｜证据章节。']]),
+    'settings/reader-contract.md': md('读者契约', [['目标读者', pending], ['核心承诺', pending], ['回报节奏', pending], ['禁忌', pending]]),
+    'settings/style-guide.md': md('文体规范', [['叙事视角', pending], ['语体与节奏', pending], ['禁用模式', pending], ['样句', pending]]),
+    'outline/master-outline.md': md('全书大纲', [['目标字数', String(meta.target_words)], ['开局失衡', pending], ['中点改义', pending], ['最低谷', pending], ['终局选择', pending]]),
+    'outline/chapter-beats.md': '# 章纲\n\n| 章号 | POV | 目标 | 阻力 | 转折 | 得失 | 信息增量 | 情绪变化 | 章尾钩子 |\n|---:|---|---|---|---|---|---|---|---|\n',
+    'outline/foreshadowing-ledger.md': '# 伏笔台账\n\n| ID | 埋设章 | 内容 | 强化章 | 回收截止章 | 状态 |\n|---|---:|---|---:|---:|---|\n',
+    'state/current-state.md': '# 当前状态\n\nupdated_through: 0\n\n尚未写入正文。\n',
+    'state/character-state.md': '# 人物状态\n\n| 人物 | 地点 | 身体 | 情绪 | 资源 | 已知信息 | 关系变化 | 截止章 |\n|---|---|---|---|---|---|---|---:|\n',
+    'state/timeline.md': '# 时间线\n\n| 时间 | 事件 | 地点 | 参与者 | 证据章节 |\n|---|---|---|---|---|\n',
+    'state/unresolved-hooks.md': '# 未解钩子\n\n| ID | 首次出现章 | 问题 | 读者预期 | 回收窗口 | 状态 |\n|---|---:|---|---|---|---|\n',
+    'analysis/trend-report.md': '# 趋势报告\n\n尚未执行带来源证据的榜单扫描。\n',
+    'analysis/breakdown.md': '# 拆书报告\n\n尚未导入可分析文本。\n',
+    'analysis/qa-report.md': '# 质量报告\n\n尚未生成正文。\n',
+    'import/source-map.md': '# 导入映射\n\n尚未导入旧稿。\n',
+    'import/continuation-plan.md': '# 续写计划\n\n尚未导入旧稿。\n',
+  };
+}
+
+function run(argv = process.argv.slice(2)) {
+  const args = argsOf(argv);
+  if (!args.title) throw new CliError('USAGE', '用法: node init-project.js --title <书名> [--root 目录] [--genre 题材] [--target-words 数字]');
+  const root = path.resolve(args.root || process.cwd());
+  const title = safeName(args.title);
+  const project = path.resolve(root, title);
+  const relative = path.relative(root, project);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) throw new CliError('PATH_ESCAPE', '项目路径超出根目录', { root, project });
+  if (fs.existsSync(project) && fs.readdirSync(project).length) throw new CliError('PROJECT_EXISTS', '目标项目目录非空，未覆盖', { project });
+  fs.mkdirSync(project, { recursive: true });
+  const targetWords = Number.parseInt(args['target-words'] || '1000000', 10);
+  if (!Number.isFinite(targetWords) || targetWords <= 0) throw new CliError('INVALID_TARGET_WORDS', '目标字数必须为正整数', { value: args['target-words'] });
+  const meta = { schema_version: '1.0', title: args.title, directory_name: title, genre: args.genre || '未指定', target_words: targetWords, updated_through: 0, created_at: new Date().toISOString() };
+  const files = templates(meta);
+  files['state/project-state.json'] = `${JSON.stringify(meta, null, 2)}\n`;
+  for (const [name, contents] of Object.entries(files)) atomicWrite(path.join(project, name), contents);
+  fs.mkdirSync(path.join(project, 'manuscript'), { recursive: true });
+  const report = { ok: true, project, files_created: Object.keys(files).length, state: meta };
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  return report;
+}
+
+if (require.main === module) {
+  try { run(); } catch (error) { process.exitCode = emitError(error, 'init-project'); }
+}
+
+module.exports = { argsOf, safeName, templates, run };

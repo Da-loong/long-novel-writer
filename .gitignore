@@ -1,0 +1,14 @@
+node_modules/
+evals/test-run.json
+coverage/
+.env
+.env.*
+!.env.example
+.firecrawl/
+artifacts/
+tests/.tmp/
+*.bak
+*.tmp
+*.log
+.DS_Store
+Thumbs.db

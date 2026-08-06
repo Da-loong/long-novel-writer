@@ -1,0 +1,88 @@
+{
+  "version": "0.2.0-rc.1",
+  "date": "2026-08-06",
+  "method": "Weighted acceptance rubric backed by current-hash automated tests, static gates, scenario fixtures, and repository governance artifacts. README claims and file counts are excluded.",
+  "dimensions": [
+    {
+      "id": "triggering",
+      "score": 8.8,
+      "evidence": [
+        {"type": "structure_gate", "path": "tools/check-skill.mjs", "case": "frontmatter_keys"},
+        {"type": "artifact", "path": "skill/long-novel-writer/SKILL.md", "case": "路由请求"}
+      ]
+    },
+    {
+      "id": "workflow",
+      "score": 8.8,
+      "evidence": [
+        {"type": "scenario", "path": "tests/project-tools.test.js", "case": "initializer creates a complete, valid project"},
+        {"type": "scenario", "path": "tests/continuity-gates.test.js", "case": "pre gate requires current context"}
+      ]
+    },
+    {
+      "id": "referenceDepth",
+      "score": 8.6,
+      "evidence": [
+        {"type": "structure_gate", "path": "tools/check-skill.mjs", "case": "shallow_genre_card"},
+        {"type": "artifact", "path": "skill/long-novel-writer/references/writing/genre-prose-cards/hard-sf.md", "case": "状态台账"}
+      ]
+    },
+    {
+      "id": "rankingEvidence",
+      "score": 8.8,
+      "evidence": [
+        {"type": "scenario", "path": "tests/rank-parser.test.js", "case": "HTML cells remain separate fields"},
+        {"type": "scenario", "path": "tests/rank-scan.test.js", "case": "Firecrawl self-host response becomes a normalized snapshot"},
+        {"type": "artifact", "path": "skill/long-novel-writer/references/scanning/firecrawl-ranking.md", "case": "证据门禁"}
+      ]
+    },
+    {
+      "id": "continuity",
+      "score": 9.0,
+      "evidence": [
+        {"type": "scenario", "path": "tests/continuity-gates.test.js", "case": "context pack retrieves relevant cold chapters"},
+        {"type": "scenario", "path": "tests/project-tools.test.js", "case": "validator catches chapter gaps and stale state"},
+        {"type": "artifact", "path": "skill/long-novel-writer/references/writing/context-and-gates.md", "case": "中断恢复"}
+      ]
+    },
+    {
+      "id": "qualityGates",
+      "score": 8.7,
+      "evidence": [
+        {"type": "test", "path": "tests/quality-tools.test.js", "case": "AI-pattern checker returns evidence"},
+        {"type": "scenario", "path": "tests/continuity-gates.test.js", "case": "post gate requires manuscript quality"}
+      ]
+    },
+    {
+      "id": "importRecovery",
+      "score": 8.3,
+      "evidence": [
+        {"type": "scenario", "path": "tests/import-inventory.test.js", "case": "old-draft inventory preserves hashes and reports gaps"},
+        {"type": "artifact", "path": "skill/long-novel-writer/references/import/continuity-recovery.md", "case": "证据"}
+      ]
+    },
+    {
+      "id": "toolReliability",
+      "score": 9.2,
+      "evidence": [
+        {"type": "scenario", "path": "tests/normalize.test.js", "case": "preserves a backup and replaces atomically"},
+        {"type": "test", "path": "tests/error-contract.test.js", "case": "structured usage error"},
+        {"type": "scenario", "path": "tests/sync-install.test.js", "case": "verified replacement and retains rollback backup"}
+      ]
+    },
+    {
+      "id": "openSourceReadiness",
+      "score": 9.0,
+      "evidence": [
+        {"type": "governance", "path": "LICENSE", "case": "MIT License"},
+        {"type": "governance", "path": ".github/workflows/ci.yml", "case": "windows-latest"},
+        {"type": "research", "path": "research/UPSTREAM.md", "case": "许可证"}
+      ]
+    }
+  ],
+  "issues": [
+    {"id": "P2-LIVE-DRIFT", "severity": "P2", "status": "open", "summary": "Official ranking DOMs can drift; CI uses fixtures and a local Firecrawl mock, not paid live requests."},
+    {"id": "P2-REMOTE", "severity": "P2", "status": "open", "summary": "Repository is locally open-source ready but has not yet been pushed to a user-selected GitHub remote."},
+    {"id": "P2-FORWARD", "severity": "P2", "status": "open", "summary": "No independent fresh-agent prose forward test is recorded in this run."}
+  ]
+}

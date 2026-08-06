@@ -1,0 +1,7 @@
+interface:
+  display_name: "长篇小说写作"
+  short_description: "从选题、拆书到大纲、正文、质检和续写的一体化创作工作台"
+  icon_small: "./assets/icon-small.png"
+  icon_large: "./assets/icon-large.png"
+  brand_color: "#16275F"
+  default_prompt: "使用 $long-novel-writer 从选题与设定开始，建立一个可持续续写的长篇小说项目。"

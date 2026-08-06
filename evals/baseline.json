@@ -1,0 +1,15 @@
+{
+  "version": "0.1.0",
+  "date": "2026-08-06",
+  "score": 7.5,
+  "status": "baseline",
+  "evidence": "D:/project/long-novel-writer-evaluation.md",
+  "knownFailures": [
+    "platform ranking wrappers share one generic importer",
+    "HTML ranking columns collapse into title",
+    "pipe-delimited rankings return zero rows",
+    "punctuation write mode has no backup",
+    "no project initializer or continuity validator",
+    "genre cards are shallow and highly templated"
+  ]
+}
