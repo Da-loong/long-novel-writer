@@ -26,6 +26,12 @@
 - 旧稿哈希清点、章节标题映射、缺章/重复章/编码损坏诊断。
 - AI 套路线索、退化/占位/重复检测、字符统计和带备份的原子标点规范化。
 
+## 整体架构
+
+![long-novel-writer architecture](docs/architecture-overview.png)
+
+可编辑 Mermaid 源文件：[`docs/architecture-overview.mmd`](docs/architecture-overview.mmd)
+
 ## 仓库结构
 
 ```text

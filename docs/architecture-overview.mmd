@@ -1,0 +1,131 @@
+flowchart TB
+    user(["作者 / 编辑 / 运营请求"])
+    router["SKILL.md 意图路由<br/>保留既有项目状态"]
+    user --> router
+
+    subgraph workflow["一体化创作工作流"]
+      direction LR
+      p1["Phase 1<br/>扫榜与选题"]
+      p2["Phase 2<br/>拆书与商业分析"]
+      p3["Phase 3<br/>设定 / 人物 / 大纲"]
+      p4["Phase 4<br/>逐章正文"]
+      p5["Phase 5<br/>一致性与质量门禁"]
+      p6["Phase 6<br/>去 AI 痕迹与复评"]
+      p1 --> p2 --> p3 --> p4 --> p5 --> p6
+      p5 -- "未通过" --> p4
+    end
+
+    router --> p1
+    router --> p2
+    router --> p3
+    router --> p4
+    router --> p5
+
+    subgraph market["市场证据层"]
+      direction LR
+      official["官方榜单页"]
+      firecrawl["Firecrawl v2<br/>动态页抓取 + JSON Schema"]
+      offline["离线导出<br/>JSON / JSONL / HTML / CSV / TSV / Pipe"]
+      snapshot["版本化榜单快照<br/>来源 · 时间 · 样本量 · 诊断"]
+      official --> firecrawl --> snapshot
+      offline --> snapshot
+    end
+    snapshot --> p1
+
+    subgraph project["小说项目：唯一事实源"]
+      direction LR
+      settings["settings/<br/>故事圣经 · 人物 · 关系<br/>读者契约 · 文体"]
+      outline["outline/<br/>全书 / 卷 / 章纲<br/>伏笔台账"]
+      manuscript["manuscript/<br/>ch-XXXX-title.md"]
+      state["state/<br/>机器状态 · 人物状态<br/>时间线 · 未解钩子"]
+      reports["analysis/ + import/<br/>趋势 · 拆书 · QA<br/>旧稿映射"]
+      settings --> outline --> manuscript --> state
+      state -. "证据回写" .-> reports
+    end
+
+    p2 --> reports
+    p3 --> settings
+    p3 --> outline
+    p4 --> manuscript
+    p5 --> reports
+    p6 --> manuscript
+
+    subgraph memory["长篇连续性：Hot / Warm / Cold"]
+      direction LR
+      warm["Warm 核心契约<br/>设定 + 人物 + 大纲"]
+      hot["Hot 当前事实<br/>状态 + 最近 3 章"]
+      cold["Cold 历史正文<br/>按人物 / 道具 / 钩子召回"]
+      pack["context-pack.md<br/>带路径、截断与相关度清单"]
+      warm --> pack
+      hot --> pack
+      cold --> pack
+    end
+    settings --> warm
+    outline --> warm
+    state --> hot
+    manuscript --> hot
+    manuscript --> cold
+
+    subgraph transaction["逐章事务边界"]
+      direction LR
+      pre{"写作前门"}
+      draft["生成并落盘本章"]
+      commit["提交状态台账"]
+      post{"写作后门"}
+      next["进入下一章"]
+      pre -- "通过" --> draft --> commit --> post
+      post -- "通过" --> next
+      pre -- "缺章纲 / 旧上下文" --> repair["修复输入"]
+      post -- "占位 / 重复 / 状态滞后" --> repair2["修复本章"]
+      repair --> pre
+      repair2 --> post
+    end
+    pack --> pre
+    next --> p4
+
+    subgraph tools["确定性工具层"]
+      direction LR
+      init["init-project"]
+      rank["rank-scan"]
+      validate["validate-project"]
+      context["context-pack"]
+      gate["chapter-gate"]
+      inventory["import-inventory"]
+      qa["AI / 退化检查<br/>字符统计"]
+      normalize["标点规范化<br/>备份 + 原子写入"]
+    end
+    init --> project
+    rank --> snapshot
+    validate --> state
+    context --> pack
+    gate --> transaction
+    inventory --> reports
+    qa --> p5
+    normalize --> p6
+
+    subgraph engineering["工程化与开源交付"]
+      direction LR
+      tests["37 项单元 / 集成 / 场景测试"]
+      eval["哈希绑定评测<br/>8.80 / 10"]
+      ci["GitHub Actions<br/>Windows / Ubuntu × Node 20 / 22"]
+      install["哈希安装器<br/>备份 · 回滚 · 镜像同步"]
+      github["公开 GitHub 仓库"]
+      tests --> eval --> ci --> github
+      ci --> install
+    end
+    tools --> tests
+    project --> tests
+
+    classDef entry fill:#16275F,color:#FFFFFF,stroke:#0C1738,stroke-width:2px;
+    classDef phase fill:#E8F0FF,color:#10234F,stroke:#5B7CDB,stroke-width:1.5px;
+    classDef data fill:#EAF8F1,color:#124D37,stroke:#39A878,stroke-width:1.5px;
+    classDef gate fill:#FFF2D8,color:#654300,stroke:#E0A629,stroke-width:2px;
+    classDef tool fill:#F2ECFF,color:#42296F,stroke:#8A68C7,stroke-width:1.5px;
+    classDef engineering fill:#EAF6FF,color:#174D6B,stroke:#4AA4D1,stroke-width:1.5px;
+
+    class user,router entry;
+    class p1,p2,p3,p4,p5,p6 phase;
+    class official,firecrawl,offline,snapshot,settings,outline,manuscript,state,reports,warm,hot,cold,pack data;
+    class pre,post,repair,repair2 gate;
+    class init,rank,validate,context,gate,inventory,qa,normalize tool;
+    class tests,eval,ci,install,github engineering;
