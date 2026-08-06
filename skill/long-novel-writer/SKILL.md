@@ -119,6 +119,8 @@ node <技能目录>/scripts/rank-scan.js --platform fanqie --dry-run
 7. 交付前统计有效中文字符/词数，核对用户要求。
 8. 写完立即更新当前状态、机器状态、人物状态、时间线、未解钩子和伏笔台账；运行 `scripts/chapter-gate.js` 的 `--stage post`，通过后才开始下一章。
 
+正文文件名固定为 `manuscript/ch-XXXX-标题.md`，章号从 `0001` 开始补零为四位。第 1 章同样先运行 `context-pack.js --chapter 1`；它会从 `settings/` 与 `outline/` 生成首章上下文包，不依赖前置正文。章纲表格必须保持 9 列，单元格内不要写 `|`。
+
 需要体裁语感时读取对应正文卡；需要上下文分层与中断恢复时读取 `context-and-gates.md`；需要技巧时读取 `dialogue-mastery.md`、`writing-craft.md`、`hooks-*.md` 和 `format-and-structure.md`。
 
 ## Phase 5：质量检查

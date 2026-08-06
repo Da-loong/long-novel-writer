@@ -30,7 +30,7 @@ function templates(meta) {
     'settings/reader-contract.md': md('读者契约', [['目标读者', pending], ['核心承诺', pending], ['回报节奏', pending], ['禁忌', pending]]),
     'settings/style-guide.md': md('文体规范', [['叙事视角', pending], ['语体与节奏', pending], ['禁用模式', pending], ['样句', pending]]),
     'outline/master-outline.md': md('全书大纲', [['目标字数', String(meta.target_words)], ['开局失衡', pending], ['中点改义', pending], ['最低谷', pending], ['终局选择', pending]]),
-    'outline/chapter-beats.md': '# 章纲\n\n| 章号 | POV | 目标 | 阻力 | 转折 | 得失 | 信息增量 | 情绪变化 | 章尾钩子 |\n|---:|---|---|---|---|---|---|---|---|\n',
+    'outline/chapter-beats.md': '# 章纲\n\n> 章号使用自然数；正文文件名必须补零为四位，例如第1章写作 `manuscript/ch-0001-标题.md`。表格单元格内不要使用 `|`。\n\n| 章号 | POV | 目标 | 阻力 | 转折 | 得失 | 信息增量 | 情绪变化 | 章尾钩子 |\n|---:|---|---|---|---|---|---|---|---|\n',
     'outline/foreshadowing-ledger.md': '# 伏笔台账\n\n| ID | 埋设章 | 内容 | 强化章 | 回收截止章 | 状态 |\n|---|---:|---|---:|---:|---|\n',
     'state/current-state.md': '# 当前状态\n\nupdated_through: 0\n\n尚未写入正文。\n',
     'state/character-state.md': '# 人物状态\n\n| 人物 | 地点 | 身体 | 情绪 | 资源 | 已知信息 | 关系变化 | 截止章 |\n|---|---|---|---|---|---|---|---:|\n',
@@ -41,6 +41,7 @@ function templates(meta) {
     'analysis/qa-report.md': '# 质量报告\n\n尚未生成正文。\n',
     'import/source-map.md': '# 导入映射\n\n尚未导入旧稿。\n',
     'import/continuation-plan.md': '# 续写计划\n\n尚未导入旧稿。\n',
+    'manuscript/README.txt': '章节文件命名约定\n\n1. 文件名必须使用 ch-XXXX-标题.md；XXXX 是从 0001 开始的四位章号。\n2. 示例：ch-0001-停电夜.md、ch-0002-规程之外.md。\n3. 第1章也要先生成上下文包：context-pack.js 会使用 settings/ 与 outline/，不依赖前置正文。\n4. 每章顺序：context-pack → chapter-gate pre → 写正文 → 更新 state → chapter-gate post。\n',
   };
 }
 

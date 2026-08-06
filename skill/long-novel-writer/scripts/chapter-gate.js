@@ -29,6 +29,10 @@ function duplicateParagraphRatio(text) {
   return (paragraphs.length - new Set(paragraphs).size) / paragraphs.length;
 }
 
+function beatCells(row) {
+  return row.split('|').slice(1, -1).map((cell) => cell.trim());
+}
+
 function gate(projectInput, options = {}) {
   const project = path.resolve(projectInput);
   const stage = options.stage || 'pre';
@@ -48,7 +52,7 @@ function gate(projectInput, options = {}) {
     const expected = Number(state.updated_through || 0) + 1;
     if (target !== expected) add('error', 'NEXT_CHAPTER_MISMATCH', 'state/project-state.json', `expected ${expected}, got ${target}`);
     const manifest = contextManifest(path.join(project, 'state', 'context-pack.md'));
-    if (!manifest) add('error', 'CONTEXT_PACK_MISSING', 'state/context-pack.md', 'run context-pack.js before drafting');
+    if (!manifest) add('error', 'CONTEXT_PACK_MISSING', 'state/context-pack.md', `run context-pack.js --chapter ${target} before drafting; chapter 1 uses settings/ and outline/ and does not require previous manuscript`);
     else {
       if (manifest.target_chapter !== target) add('error', 'CONTEXT_TARGET_MISMATCH', 'state/context-pack.md', `expected ${target}, got ${manifest.target_chapter}`);
       if (manifest.state_updated_through !== Number(state.updated_through || 0)) add('error', 'CONTEXT_STALE', 'state/context-pack.md', 'project state changed after context pack generation');
@@ -57,7 +61,11 @@ function gate(projectInput, options = {}) {
     const beats = fs.existsSync(beatsPath) ? fs.readFileSync(beatsPath, 'utf8') : '';
     const row = beats.split(/\r?\n/).find((line) => new RegExp(`^\\|\\s*0*${target}\\s*\\|`).test(line));
     if (!row) add('error', 'CHAPTER_BEAT_MISSING', 'outline/chapter-beats.md', `missing row for chapter ${target}`);
-    else if (row.split('|').slice(1, -1).slice(1).some((cell) => !cell.trim())) add('error', 'CHAPTER_BEAT_INCOMPLETE', 'outline/chapter-beats.md', `chapter ${target} has empty fields`);
+    else {
+      const cells = beatCells(row);
+      if (cells.length !== 9) add('error', 'CHAPTER_BEAT_COLUMN_COUNT', 'outline/chapter-beats.md', `chapter ${target} has ${cells.length} columns; expected 9 and no pipe characters inside cells`);
+      else if (cells.slice(1).some((cell) => !cell)) add('error', 'CHAPTER_BEAT_INCOMPLETE', 'outline/chapter-beats.md', `chapter ${target} has empty fields`);
+    }
     for (const name of ['settings/story-bible.md', 'settings/reader-contract.md']) {
       const text = fs.existsSync(path.join(project, name)) ? fs.readFileSync(path.join(project, name), 'utf8') : '';
       if (/待首次策划填写/.test(text)) add('error', 'CORE_SETTING_PENDING', name, 'replace initializer prompts with confirmed content or explicit unknowns');
@@ -95,4 +103,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-gate'); }
 }
 
-module.exports = { argsOf, contextManifest, duplicateParagraphRatio, gate, run };
+module.exports = { argsOf, contextManifest, duplicateParagraphRatio, beatCells, gate, run };

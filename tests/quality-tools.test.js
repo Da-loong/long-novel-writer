@@ -12,6 +12,13 @@ test('AI-pattern checker returns evidence line and excerpt', () => {
   assert.ok(report.findings.some((item) => item.rule === '陈套意象' && item.excerpt));
 });
 
+test('AI-pattern checker ignores one necessary comparison but flags repeated isomorphic turns', () => {
+  const single = analyzeAi('technical.md', '这不是交流电，而是残余感应电。');
+  assert.ok(!single.findings.some((item) => item.rule === '同构转折'));
+  const repeated = analyzeAi('patterned.md', '这不是恐惧，而是警觉。\n那不是退让，而是蓄力。');
+  assert.equal(repeated.findings.filter((item) => item.rule === '同构转折').length, 2);
+});
+
 test('degeneration checker catches placeholders and duplicate paragraphs', () => {
   const paragraph = '这是一段用于检查重复的正文，角色沿着码头反复确认自己的选择和后果。';
   const report = analyzeDegeneration('chapter.md', `待补\n\n${paragraph}\n\n${paragraph}`);

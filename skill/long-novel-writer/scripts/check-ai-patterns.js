@@ -19,7 +19,9 @@ function analyze(file, text) {
   const findings = [];
   for (const [rule, regex] of patterns) {
     regex.lastIndex = 0;
-    for (const m of text.matchAll(regex)) findings.push({ rule, line: lineOf(text, m.index), excerpt: m[0].slice(0, 100) });
+    const matches = [...text.matchAll(regex)];
+    if (rule === '同构转折' && matches.length < 2) continue;
+    for (const m of matches) findings.push({ rule, line: lineOf(text, m.index), excerpt: m[0].slice(0, 100) });
   }
   const starts = new Map();
   for (const sentence of text.split(/[。！？\n]+/).map(x => x.trim()).filter(x => x.length >= 8)) {

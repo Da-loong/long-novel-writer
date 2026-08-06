@@ -11,6 +11,9 @@ const REQUIRED = [
   'state/project-state.json', 'state/current-state.md', 'state/character-state.md', 'state/timeline.md', 'state/unresolved-hooks.md',
 ];
 
+const PLACEHOLDER_PATTERN = /(?:\[TODO\]|\bTBD\b|此处略|待首次策划填写)/i;
+const CHAPTER_PATTERN = /^ch-\d{4}-.+\.md$/i;
+
 function duplicates(text, pattern) {
   const counts = new Map();
   for (const match of text.matchAll(pattern)) counts.set(match[0], (counts.get(match[0]) || 0) + 1);
@@ -31,7 +34,11 @@ function validate(rootInput) {
     try { state = JSON.parse(fs.readFileSync(statePath, 'utf8')); } catch (error) { add('error', 'INVALID_STATE_JSON', 'state/project-state.json', error.message); }
   }
   const manuscript = path.join(root, 'manuscript');
-  const chapterFiles = fs.existsSync(manuscript) ? fs.readdirSync(manuscript).filter((name) => /^ch-\d{4}-.+\.md$/i.test(name)).sort() : [];
+  const manuscriptEntries = fs.existsSync(manuscript) ? fs.readdirSync(manuscript) : [];
+  const chapterFiles = manuscriptEntries.filter((name) => CHAPTER_PATTERN.test(name)).sort();
+  for (const name of manuscriptEntries.filter((item) => /^ch-/i.test(item) && /\.md$/i.test(item) && !CHAPTER_PATTERN.test(item))) {
+    add('error', 'INVALID_CHAPTER_FILENAME', `manuscript/${name}`, 'expected ch-XXXX-title.md with a four-digit chapter number, for example ch-0001-opening.md');
+  }
   const chapterNumbers = chapterFiles.map((name) => Number.parseInt(name.slice(3, 7), 10));
   for (let expected = 1; expected <= (chapterNumbers.at(-1) || 0); expected++) if (!chapterNumbers.includes(expected)) add('error', 'CHAPTER_GAP', 'manuscript', `missing chapter ${expected}`);
   if (new Set(chapterNumbers).size !== chapterNumbers.length) add('error', 'DUPLICATE_CHAPTER_NUMBER', 'manuscript', 'chapter numbers must be unique');
@@ -47,7 +54,7 @@ function validate(rootInput) {
   for (const name of REQUIRED.filter((item) => fs.existsSync(path.join(root, item)))) {
     const text = fs.readFileSync(path.join(root, name), 'utf8');
     if (text.includes('\uFFFD')) add('error', 'ENCODING_DAMAGE', name, 'Unicode replacement character found');
-    if (/(?:\[TODO\]|\bTBD\b|此处略)/i.test(text)) add('warning', 'PLACEHOLDER', name, 'unresolved placeholder found');
+    if (PLACEHOLDER_PATTERN.test(text)) add('warning', 'PLACEHOLDER', name, 'unresolved placeholder found');
   }
   const hookPath = path.join(root, 'state', 'unresolved-hooks.md');
   if (fs.existsSync(hookPath)) for (const item of duplicates(fs.readFileSync(hookPath, 'utf8'), /HOOK-[A-Z0-9_-]+/g)) add('error', 'DUPLICATE_HOOK_ID', 'state/unresolved-hooks.md', item);
@@ -69,4 +76,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'validate-project'); }
 }
 
-module.exports = { REQUIRED, duplicates, validate, run };
+module.exports = { REQUIRED, PLACEHOLDER_PATTERN, CHAPTER_PATTERN, duplicates, validate, run };

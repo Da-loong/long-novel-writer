@@ -25,7 +25,9 @@ test('context query keeps Chinese search terms deterministic', () => {
 test('pre gate requires current context, complete beat, and core settings', () => {
   const project = initializedProject();
   let report = gate(project, { stage: 'pre', chapter: '1' });
-  assert.ok(report.errors.some((item) => item.code === 'CONTEXT_PACK_MISSING'));
+  const missingContext = report.errors.find((item) => item.code === 'CONTEXT_PACK_MISSING');
+  assert.ok(missingContext);
+  assert.match(missingContext.detail, /chapter 1 uses settings\/ and outline\//);
   assert.ok(report.errors.some((item) => item.code === 'CHAPTER_BEAT_MISSING'));
   for (const name of ['settings/story-bible.md', 'settings/reader-contract.md']) {
     const file = path.join(project, name);
@@ -36,6 +38,19 @@ test('pre gate requires current context, complete beat, and core settings', () =
   fs.writeFileSync(path.join(project, 'state', 'context-pack.md'), pack.markdown, 'utf8');
   report = gate(project, { stage: 'pre', chapter: '1' });
   assert.equal(report.ok, true, JSON.stringify(report.errors));
+});
+
+test('pre gate rejects pipe characters that corrupt the nine-column beat schema', () => {
+  const project = initializedProject();
+  for (const name of ['settings/story-bible.md', 'settings/reader-contract.md']) {
+    const file = path.join(project, name);
+    fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replaceAll('待首次策划填写；未知项须显式标为“未知”，不得伪造。', '未知；待与作者确认。'), 'utf8');
+  }
+  fs.appendFileSync(path.join(project, 'outline', 'chapter-beats.md'), '| 1 | 林舟 | 找到账本 | 巡夜人 | 账本是诱饵 | 得线索 | 失退路 | 知道内应存在 | 警觉转决绝 | 门外响起暗号 |\n', 'utf8');
+  const pack = build(project, { chapter: '1', query: '林舟 账本' });
+  fs.writeFileSync(path.join(project, 'state', 'context-pack.md'), pack.markdown, 'utf8');
+  const report = gate(project, { stage: 'pre', chapter: '1' });
+  assert.ok(report.errors.some((item) => item.code === 'CHAPTER_BEAT_COLUMN_COUNT'));
 });
 
 test('context pack retrieves relevant cold chapters and marks tiers', () => {

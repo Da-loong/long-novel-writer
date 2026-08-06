@@ -22,9 +22,23 @@ test('initializer creates a complete, valid project without overwriting', () => 
   const report = validate(project);
   assert.equal(report.ok, true);
   assert.equal(report.latest_chapter, 0);
+  assert.ok(report.warnings.some((item) => item.code === 'PLACEHOLDER'));
+  const manuscriptGuide = fs.readFileSync(path.join(project, 'manuscript', 'README.txt'), 'utf8');
+  assert.match(manuscriptGuide, /ch-0001-/);
+  assert.match(manuscriptGuide, /context-pack/);
   const second = spawnSync(process.execPath, [path.join(scripts, 'init-project.js'), '--root', temp, '--title', '测试长篇'], { encoding: 'utf8' });
   assert.equal(second.status, 2);
   assert.equal(JSON.parse(second.stderr).error.code, 'PROJECT_EXISTS');
+});
+
+test('validator rejects non-padded chapter filenames with an actionable example', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lnw-project-name-'));
+  const project = init(temp, '章名测试');
+  fs.writeFileSync(path.join(project, 'manuscript', 'ch-001-first.md'), '# 第一章\n', 'utf8');
+  const report = validate(project);
+  const finding = report.errors.find((item) => item.code === 'INVALID_CHAPTER_FILENAME');
+  assert.ok(finding);
+  assert.match(finding.detail, /ch-0001-opening\.md/);
 });
 
 test('validator catches chapter gaps and stale state', () => {
