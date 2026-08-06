@@ -1,5 +1,7 @@
 # long-novel-writer
 
+[![ci](https://github.com/Da-loong/long-novel-writer/actions/workflows/ci.yml/badge.svg)](https://github.com/Da-loong/long-novel-writer/actions/workflows/ci.yml)
+
 面向中文长篇网络小说的 Codex/Agent Skill。目标不是“一键声称写完百万字”，而是把开书、拆书、设定、大纲、正文、连续性、质检、榜单证据和旧稿导入做成可验证工程。
 
 公开仓库：https://github.com/Da-loong/long-novel-writer
