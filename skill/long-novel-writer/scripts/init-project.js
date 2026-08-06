@@ -37,13 +37,14 @@ function templates(meta) {
     'state/timeline.md': '# 时间线\n\n| 时间 | 事件 | 地点 | 参与者 | 证据章节 |\n|---|---|---|---|---|\n',
     'state/unresolved-hooks.md': '# 未解钩子\n\n| ID | 首次出现章 | 问题 | 读者预期 | 回收窗口 | 状态 |\n|---|---:|---|---|---|---|\n',
     'state/chapter-transaction.json': `${JSON.stringify({ schema_version: '1.0', phase: 'idle', chapter: null, updated_at: null }, null, 2)}\n`,
+    'state/pilot-verdict.json': `${JSON.stringify({ schema_version: '1.0', status: 'pending', reviewed_through: 0, reviewer: null, reason: null, updated_at: null }, null, 2)}\n`,
     'state/production-ledger.jsonl': '',
     'analysis/trend-report.md': '# 趋势报告\n\n尚未执行带来源证据的榜单扫描。\n',
     'analysis/breakdown.md': '# 拆书报告\n\n尚未导入可分析文本。\n',
     'analysis/qa-report.md': '# 质量报告\n\n尚未生成正文。\n',
     'import/source-map.md': '# 导入映射\n\n尚未导入旧稿。\n',
     'import/continuation-plan.md': '# 续写计划\n\n尚未导入旧稿。\n',
-    'manuscript/README.txt': '章节文件命名约定\n\n1. 文件名必须使用 ch-XXXX-标题.md；XXXX 是从 0001 开始的四位章号。\n2. 示例：ch-0001-停电夜.md、ch-0002-规程之外.md。\n3. 第1章也要先生成上下文包：context-pack.js 会使用 settings/ 与 outline/，不依赖前置正文。\n4. 首选事务流程：chapter-transaction begin → 写正文并更新 state → chapter-transaction finish。begin 自动生成 context-pack 并执行写前门；finish 执行字数、状态与 Canon 变更检查。\n',
+    'manuscript/README.txt': '章节文件命名约定\n\n1. 文件名必须使用 ch-XXXX-标题.md；XXXX 是从 0001 开始的四位章号。\n2. 示例：ch-0001-停电夜.md、ch-0002-规程之外.md。\n3. 第1章也要先生成上下文包：context-pack.js 会使用 settings/ 与 outline/，不依赖前置正文。\n4. 首选事务流程：chapter-transaction begin → 写正文并更新 state → chapter-transaction finish。begin 自动生成 context-pack 并执行写前门；finish 执行字数、状态与 Canon 变更检查。\n5. 30万字以上项目完成黄金三章后必须取得真人冷读通过，再开始第4章。\n',
   };
 }
 

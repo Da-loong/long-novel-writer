@@ -3,14 +3,15 @@
   "releaseThreshold": 8.5,
   "blockingSeverities": ["P0", "P1"],
   "dimensions": [
-    {"id": "triggering", "weight": 0.10, "minimum": 8.5},
-    {"id": "workflow", "weight": 0.15, "minimum": 8.5},
-    {"id": "referenceDepth", "weight": 0.12, "minimum": 8.0},
-    {"id": "rankingEvidence", "weight": 0.15, "minimum": 8.0},
-    {"id": "continuity", "weight": 0.16, "minimum": 8.5},
-    {"id": "qualityGates", "weight": 0.12, "minimum": 8.5},
-    {"id": "importRecovery", "weight": 0.08, "minimum": 8.0},
-    {"id": "toolReliability", "weight": 0.08, "minimum": 9.0},
+    {"id": "triggering", "weight": 0.08, "minimum": 8.5},
+    {"id": "workflow", "weight": 0.12, "minimum": 8.5},
+    {"id": "referenceDepth", "weight": 0.10, "minimum": 8.0},
+    {"id": "rankingEvidence", "weight": 0.12, "minimum": 8.0},
+    {"id": "continuity", "weight": 0.14, "minimum": 8.5},
+    {"id": "qualityGates", "weight": 0.10, "minimum": 8.5},
+    {"id": "readerExperience", "weight": 0.16, "minimum": 8.0},
+    {"id": "importRecovery", "weight": 0.07, "minimum": 8.0},
+    {"id": "toolReliability", "weight": 0.07, "minimum": 9.0},
     {"id": "openSourceReadiness", "weight": 0.04, "minimum": 9.0}
   ],
   "evidenceRules": {

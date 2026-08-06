@@ -10,6 +10,7 @@ const { gate } = require('./chapter-gate');
 
 const TRANSACTION_FILE = 'state/chapter-transaction.json';
 const LEDGER_FILE = 'state/production-ledger.jsonl';
+const PILOT_FILE = 'state/pilot-verdict.json';
 
 function argsOf(argv) {
   const args = {};
@@ -84,6 +85,17 @@ function numericRange(options) {
   return { minimum, maximum };
 }
 
+function requirePilotApproval(project, state, chapter) {
+  if (chapter <= 3 || Number(state.target_words || 0) < 300000) return;
+  const verdict = readJson(path.join(project, PILOT_FILE), { status: 'pending', reviewed_through: 0 });
+  if (verdict.status !== 'approved' || Number(verdict.reviewed_through || 0) < 3 || verdict.human_confirmed !== true) {
+    throw new CliError('PILOT_NOT_APPROVED', '黄金三章尚未通过真人冷读，已阻止规模化续写', {
+      pilot: path.join(project, PILOT_FILE), status: verdict.status || 'pending', reviewed_through: Number(verdict.reviewed_through || 0),
+      next: `node pilot-review.js approve "${project}" --reviewed-through 3 --reviewer <真人> --reason <结论> --human-confirmed`,
+    });
+  }
+}
+
 function begin(projectInput, options = {}) {
   const project = path.resolve(projectInput);
   const transactionPath = path.join(project, TRANSACTION_FILE);
@@ -93,6 +105,7 @@ function begin(projectInput, options = {}) {
   const chapter = Number.parseInt(options.chapter || String(Number(state.updated_through || 0) + 1), 10);
   const expected = Number(state.updated_through || 0) + 1;
   if (chapter !== expected) throw new CliError('NEXT_CHAPTER_MISMATCH', `下一章应为 ${expected}`, { expected, chapter });
+  requirePilotApproval(project, state, chapter);
   const range = numericRange(options);
   const context = build(project, { chapter: String(chapter), query: options.query || '', recent: options.recent, retrieve: options.retrieve, budget: options.budget });
   const contextPath = path.join(project, 'state', 'context-pack.md');
@@ -198,4 +211,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-transaction'); }
 }
 
-module.exports = { TRANSACTION_FILE, LEDGER_FILE, argsOf, digestText, canonFiles, canonManifest, manifestDiff, numericRange, begin, finish, abort, status, run };
+module.exports = { TRANSACTION_FILE, LEDGER_FILE, PILOT_FILE, argsOf, digestText, canonFiles, canonManifest, manifestDiff, numericRange, requirePilotApproval, begin, finish, abort, status, run };

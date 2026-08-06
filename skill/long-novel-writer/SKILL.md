@@ -110,6 +110,8 @@ node <技能目录>/scripts/rank-scan.js --platform fanqie --dry-run
 
 黄金三章依次完成：第 1 章异常与明确欲望；第 2 章代价与行动；第 3 章不可逆选择与长线承诺。按题材读取 `references/writing/genre-prose-cards/` 中对应卡片，并按需读取人物、大纲、钩子、情感与读者画像参考。
 
+开新书时同时读取 `references/writing/platform-pilot-and-readability.md`。黄金三章必须先证明“普通读者看得懂、愿意追”，再证明设定复杂；每章新增需记忆概念默认不超过 3 个，连续解释不超过 150 个中文字符，且不得提前消费下一章章拍。30 万字以上项目写完第 3 章后暂停，由目标读者直接冷读正文；模型自评和脚本通过不能替代真人放行。
+
 ## Phase 4：正文写作
 
 1. 先从章纲提取本章“承诺—阻力—变化—钩子”及人物/道具/伏笔查询词；优先运行 `scripts/chapter-transaction.js` 的 `begin` 命令，让脚本自动生成上下文包、执行写前门并锁定 Canon。门禁失败时修复输入，不越过失败继续批量写。
@@ -120,6 +122,15 @@ node <技能目录>/scripts/rank-scan.js --platform fanqie --dry-run
 6. 批量写作默认每批 1–3 章；逐章落盘，禁止用“略”“待补”“战斗若干”代替正文。
 7. 交付前统计有效中文字符/词数，核对用户要求；有明确章长区间时，写后门同时传 `--min-chars` 与 `--max-chars`，超限则拆分或收束本章。
 8. 写完立即更新当前状态、机器状态、人物状态、时间线、未解钩子和伏笔台账；运行 `scripts/chapter-transaction.js` 的 `finish` 命令。它通过字数、连续性、状态和 Canon 变更检查并写入生产账本后，才开始下一章。
+
+机械 `finish` 只表示工程状态完整，不表示读者体验合格。30 万字以上项目开始第 4 章前，先记录真人试读结论：
+
+```powershell
+node <技能目录>/scripts/pilot-review.js status <项目目录>
+node <技能目录>/scripts/pilot-review.js approve <项目目录> --reviewed-through 3 --reviewer <真人> --reason "愿意继续读的具体原因" --human-confirmed
+```
+
+若真人反馈看不懂、拖沓、不舒服或平台错位，运行 `reject` 并停止续章；回到卖点、读者契约、黄金三章章拍和文体样章重构，不在失败稿后继续堆字。
 
 正文文件名固定为 `manuscript/ch-XXXX-标题.md`，章号从 `0001` 开始补零为四位。第 1 章同样先运行 `context-pack.js --chapter 1`；它会从 `settings/` 与 `outline/` 生成首章上下文包，不依赖前置正文。章纲表格必须保持 9 列，单元格内不要写 `|`。
 
@@ -161,6 +172,8 @@ node scripts/chapter-transaction.js status <项目目录>
 检查脚本只提供线索，不做机械删改。标点确需落盘时运行 `normalize-punctuation.js <路径> --write`，默认先生成 `.bak` 并原子替换；若要保留源目录，使用 `--out-dir <目录>`。把严重问题、证据片段、建议动作和复核结果写入 `analysis/qa-report.md`。
 
 第 6 章检查一次新鲜度衰减，之后每 10 章做冷读与跨章重复检查；每卷做读者承诺、角色弧、问题/承诺、伏笔、节奏和 Canon 冲突审计。正文因果链保持顺序写作，审校视角可并行。相同失败出现两次，就把它沉淀为规则或确定性测试。
+
+黄金三章逐章做通俗复述：目标读者若不能用一句口语说清“主角要什么、遇到什么麻烦、这章赢或输了什么”，本章判为读者体验失败，即使所有脚本返回 `ok: true`。反馈优先级高于自动评分。
 
 ## Phase 6：去 AI 痕迹七道门
 

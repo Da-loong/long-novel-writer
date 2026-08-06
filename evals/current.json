@@ -1,6 +1,6 @@
 {
-  "version": "0.2.0-rc.1",
-  "date": "2026-08-06",
+  "version": "0.2.0-rc.2",
+  "date": "2026-08-07",
   "method": "Weighted acceptance rubric backed by current-hash automated tests, static gates, scenario fixtures, and repository governance artifacts. README claims and file counts are excluded.",
   "dimensions": [
     {
@@ -54,6 +54,14 @@
       ]
     },
     {
+      "id": "readerExperience",
+      "score": 3.0,
+      "evidence": [
+        {"type": "live_artifact", "path": "evals/field-tests/2026-08-07-pilot-rejection.md", "case": "真人结论：拒绝继续扩写"},
+        {"type": "scenario", "path": "tests/pilot-review.test.js", "case": "a later human rejection closes the scale gate again"}
+      ]
+    },
+    {
       "id": "importRecovery",
       "score": 8.3,
       "evidence": [
@@ -81,6 +89,7 @@
     }
   ],
   "issues": [
+    {"id": "P1-READER-PILOT", "severity": "P1", "status": "open", "summary": "The first four-chapter live pilot was rejected by the target reader as confusing, uncomfortable, and off-platform; prose release readiness is blocked."},
     {"id": "P2-LIVE-DRIFT", "severity": "P2", "status": "open", "summary": "Official ranking DOMs can drift; CI uses fixtures and a local Firecrawl mock, not paid live requests."},
     {"id": "P2-REMOTE", "severity": "P2", "status": "closed", "summary": "Public repository published at https://github.com/Da-loong/long-novel-writer."},
     {"id": "P2-FORWARD", "severity": "P2", "status": "open", "summary": "No independent fresh-agent prose forward test is recorded in this run."}
