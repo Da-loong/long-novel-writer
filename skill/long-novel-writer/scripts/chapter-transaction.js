@@ -11,6 +11,8 @@ const { gate } = require('./chapter-gate');
 const TRANSACTION_FILE = 'state/chapter-transaction.json';
 const LEDGER_FILE = 'state/production-ledger.jsonl';
 const PILOT_FILE = 'state/pilot-verdict.json';
+const AUTOPILOT_FILE = 'state/autopilot.json';
+const AUTOPILOT_PILOT_FILE = 'state/autopilot-pilot.json';
 
 function argsOf(argv) {
   const args = {};
@@ -87,6 +89,15 @@ function numericRange(options) {
 
 function requirePilotApproval(project, state, chapter) {
   if (chapter <= 3 || Number(state.target_words || 0) < 300000) return;
+  const autopilot = readJson(path.join(project, AUTOPILOT_FILE), { mode: 'supervised' });
+  if (autopilot.mode === 'autopilot') {
+    const verdict = readJson(path.join(project, AUTOPILOT_PILOT_FILE), { status: 'pending', reviewed_through: 0, auto_confirmed: false });
+    if (verdict.status === 'approved' && verdict.auto_confirmed === true && Number(verdict.reviewed_through || 0) >= 3 && Number(verdict.score || 0) >= 8) return;
+    throw new CliError('PILOT_NOT_APPROVED', '自动盲评尚未达到放行阈值，已阻止规模化续写', {
+      pilot: path.join(project, AUTOPILOT_PILOT_FILE), status: verdict.status || 'pending', reviewed_through: Number(verdict.reviewed_through || 0),
+      next: `node autopilot.js pilot-pass "${project}" --evidence <自动盲评.json>`,
+    });
+  }
   const verdict = readJson(path.join(project, PILOT_FILE), { status: 'pending', reviewed_through: 0 });
   if (verdict.status !== 'approved' || Number(verdict.reviewed_through || 0) < 3 || verdict.human_confirmed !== true) {
     throw new CliError('PILOT_NOT_APPROVED', '黄金三章尚未通过真人冷读，已阻止规模化续写', {
@@ -211,4 +222,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-transaction'); }
 }
 
-module.exports = { TRANSACTION_FILE, LEDGER_FILE, PILOT_FILE, argsOf, digestText, canonFiles, canonManifest, manifestDiff, numericRange, requirePilotApproval, begin, finish, abort, status, run };
+module.exports = { TRANSACTION_FILE, LEDGER_FILE, PILOT_FILE, AUTOPILOT_FILE, AUTOPILOT_PILOT_FILE, argsOf, digestText, canonFiles, canonManifest, manifestDiff, numericRange, requirePilotApproval, begin, finish, abort, status, run };

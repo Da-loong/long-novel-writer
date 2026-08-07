@@ -6,6 +6,8 @@ const path = require('path');
 const { CliError, emitError, atomicWrite } = require('./cap-utils');
 
 const PILOT_FILE = 'state/pilot-verdict.json';
+const AUTOPILOT_FILE = 'state/autopilot.json';
+const AUTOPILOT_PILOT_FILE = 'state/autopilot-pilot.json';
 const LEDGER_FILE = 'state/production-ledger.jsonl';
 
 function argsOf(argv) {
@@ -46,11 +48,15 @@ function status(projectInput) {
   const verdict = readJson(path.join(project, PILOT_FILE), {
     schema_version: '1.0', status: 'pending', reviewed_through: 0, updated_at: null,
   });
-  const release_to_scale = verdict.status === 'approved' && Number(verdict.reviewed_through || 0) >= 3;
+  const autopilot = readJson(path.join(project, AUTOPILOT_FILE), { mode: 'supervised', status: 'idle', phase: 'idle' });
+  const autopilotPilot = readJson(path.join(project, AUTOPILOT_PILOT_FILE), { status: 'pending', reviewed_through: 0, auto_confirmed: false });
+  const human_release = verdict.status === 'approved' && Number(verdict.reviewed_through || 0) >= 3 && verdict.human_confirmed === true;
+  const autopilot_release = autopilot.mode === 'autopilot' && autopilotPilot.status === 'approved' && autopilotPilot.auto_confirmed === true && Number(autopilotPilot.reviewed_through || 0) >= 3 && Number(autopilotPilot.score || 0) >= 8;
+  const release_to_scale = human_release || autopilot_release;
   return {
     ok: true, command: 'status', project, target_words: Number(projectState.target_words || 0),
-    updated_through: Number(projectState.updated_through || 0), verdict, release_to_scale,
-    next_action: release_to_scale ? 'continue chapter transactions' : 'obtain human cold-read verdict on chapters 1-3',
+    updated_through: Number(projectState.updated_through || 0), verdict, autopilot, autopilot_pilot: autopilotPilot, human_release, autopilot_release, release_to_scale,
+    next_action: release_to_scale ? 'continue chapter transactions' : autopilot.mode === 'autopilot' ? 'run independent blind panel, then autopilot.js pilot-pass' : 'obtain human cold-read verdict on chapters 1-3',
   };
 }
 
@@ -98,4 +104,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'pilot-review'); }
 }
 
-module.exports = { PILOT_FILE, argsOf, status, decide, run };
+module.exports = { PILOT_FILE, AUTOPILOT_FILE, AUTOPILOT_PILOT_FILE, argsOf, status, decide, run };

@@ -26,6 +26,19 @@ description: 长篇网络小说的一体化创作与项目管理技能。用于�
 
 写作前先判断故障位于读者、承诺、结构、Canon 还是表达层，再读取 `references/writing/module-routing.md` 指定的一个主模块和一个校验模块。不要把整套参考资料一次性加载；项目的 `settings/`、`outline/`、`state/` 文件始终优先于通用模板。相同问题第二次出现时，必须沉淀到反馈台账并增加可复验动作。
 
+## 无人值守模式
+
+当用户只说“开始”且未指定人工确认点时，默认进入 `autopilot`：自动扫榜、选题、拆书、建纲、生成黄金三章、盲评返工、逐章生产、每卷审计并推进到完结。所有选题必须绑定带时间戳的来源和置信度；证据不足时自动淘汰候选并重新采集，不把选择题抛回用户。运行状态写入 `state/autopilot.json`，阶段切换使用 `scripts/autopilot.js`。
+
+需要用户亲自把关时才使用 `supervised`。两种模式都保留 Canon 锁、章节事务、上下文包、读者指标、质量检查、反馈台账和 handoff；自动模式只是把真人试读替换为独立盲评门禁，不跳过质量检查。
+
+启动无人值守编排：
+
+```powershell
+node <技能目录>/scripts/autopilot.js start <项目目录>
+node <技能目录>/scripts/autopilot.js status <项目目录>
+```
+
 ## 建立项目
 
 默认在当前工作区创建 `<书名或项目名>/`；清理名称中的路径字符，不覆盖非空目录。优先运行确定性初始化器：
@@ -58,6 +71,8 @@ node <技能目录>/scripts/init-project.js --root <工作区> --title <书名> 
 │  ├─ unresolved-hooks.md
 │  ├─ feedback-ledger.md       # 用户/读者反馈→规则→复验
 │  ├─ handoff-current.md       # 可恢复的跨会话交接
+│  ├─ autopilot.json            # 无人值守阶段、模式与恢复点
+│  ├─ autopilot-pilot.json      # 自动盲评放行记录
 │  ├─ chapter-transaction.json # 当前章事务、Canon 锁与门禁结果
 │  └─ production-ledger.jsonl  # 逐章通过/失败/中止审计账本
 ├─ analysis/
@@ -133,14 +148,16 @@ node <技能目录>/scripts/rank-scan.js --platform fanqie --dry-run
 
 写后追加 `node scripts/reader-metrics.js <章节>`；它只提供开头延迟、解释块、对白比例和章尾形状的证据。任何预警先做结构/读者判断，不得用删词把预警刷成通过。
 
-机械 `finish` 只表示工程状态完整，不表示读者体验合格。30 万字以上项目开始第 4 章前，先记录真人试读结论：
+机械 `finish` 只表示工程状态完整，不表示读者体验合格。30 万字以上项目开始第 4 章前：`supervised` 模式记录真人试读结论；`autopilot` 模式生成至少 3 个独立评审的盲评 JSON，并运行：
 
 ```powershell
 node <技能目录>/scripts/pilot-review.js status <项目目录>
 node <技能目录>/scripts/pilot-review.js approve <项目目录> --reviewed-through 3 --reviewer <真人> --reason "愿意继续读的具体原因" --human-confirmed
+# 无人值守模式：盲评 JSON 必须满足 reader_score/platform_fit >= 8、理解通过率 >= 0.8、继续阅读率 >= 0.67
+node <技能目录>/scripts/autopilot.js pilot-pass <项目目录> --evidence <自动盲评.json>
 ```
 
-若真人反馈看不懂、拖沓、不舒服或平台错位，运行 `reject` 并停止续章；回到卖点、读者契约、黄金三章章拍和文体样章重构，不在失败稿后继续堆字。
+若真人反馈或自动盲评显示看不懂、拖沓、不舒服或平台错位，自动停止续章；回到卖点、读者契约、黄金三章章拍和文体样章重构，不在失败稿后继续堆字。无人值守模式最多自动返工 3 轮，仍未通过则回退到 `breakdown` 阶段。
 
 正文文件名固定为 `manuscript/ch-XXXX-标题.md`，章号从 `0001` 开始补零为四位。第 1 章同样先运行 `context-pack.js --chapter 1`；它会从 `settings/` 与 `outline/` 生成首章上下文包，不依赖前置正文。章纲表格必须保持 9 列，单元格内不要写 `|`。
 
@@ -158,7 +175,7 @@ node <技能目录>/scripts/chapter-transaction.js begin <项目目录> --chapte
 node <技能目录>/scripts/chapter-transaction.js finish <项目目录> --chapter <N>
 ```
 
-需要体裁语感时读取对应正文卡；连续生成、Canon 锁和中断恢复时读取 `production-orchestration.md` 与 `context-and-gates.md`；需要技巧时读取 `dialogue-mastery.md`、`writing-craft.md`、`hooks-*.md` 和 `format-and-structure.md`。
+需要体裁语感时读取对应正文卡；无人值守编排读取 `autopilot-orchestration.md`；连续生成、Canon 锁和中断恢复时读取 `production-orchestration.md` 与 `context-and-gates.md`；需要技巧时读取 `dialogue-mastery.md`、`writing-craft.md`、`hooks-*.md` 和 `format-and-structure.md`。
 
 ## Phase 5：质量检查
 
