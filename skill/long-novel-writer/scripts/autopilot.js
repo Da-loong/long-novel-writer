@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { CliError, emitError, atomicWrite } = require('./cap-utils');
+const { validate: validateEvidence } = require('./evidence-audit');
 
 const AUTOPILOT_FILE = 'state/autopilot.json';
 const PILOT_FILE = 'state/autopilot-pilot.json';
@@ -39,7 +40,7 @@ function defaultState(project, state) {
   return {
     schema_version: '1.0', mode: 'supervised', status: 'idle', phase: 'idle',
     target_words: Number(state.target_words || 1000000), current_chapter: Number(state.updated_through || 0),
-    revision_round: 0, max_revision_rounds: 3, project: path.basename(project), updated_at: null,
+    revision_round: 0, max_revision_rounds: 3, chapter_review_interval: 10, last_review_through: 0, project: path.basename(project), updated_at: null,
   };
 }
 
@@ -117,6 +118,8 @@ function pilotPass(projectInput, options = {}) {
   const evidencePath = path.resolve(project, options.evidence || '');
   const evidence = readJson(evidencePath);
   if (!evidence) throw new CliError('PILOT_EVIDENCE_MISSING', '需要 --evidence 指向自动盲评 JSON', { evidence: evidencePath });
+  const audit = validateEvidence(project, evidence);
+  if (!audit.ok) throw new CliError('AUTOPILOT_EVIDENCE_INVALID', '自动盲评缺少可核验目标锚点或原文证据', { evidence: evidencePath, errors: audit.errors });
   const reports = Array.isArray(evidence.reader_reports) ? evidence.reader_reports : [];
   const checks = {
     reviewed_through: Number(evidence.reviewed_through || 0) >= 3,
@@ -125,12 +128,13 @@ function pilotPass(projectInput, options = {}) {
     platform_fit: Number(evidence.platform_fit || 0) >= 8,
     comprehension: Number(evidence.comprehension_pass_rate || 0) >= 0.8,
     continuation: Number(evidence.continuation_rate || 0) >= 0.67,
-    critical_failures: Number(evidence.critical_failures || 0) === 0,
+    target_anchor_coverage: audit.anchor_coverage >= 0.8,
+    critical_failures: Number(evidence.critical_failures || audit.critical_failures || 0) === 0,
   };
   const failures = Object.entries(checks).filter(([, passed]) => !passed).map(([key]) => key);
   if (failures.length) throw new CliError('AUTOPILOT_PILOT_FAILED', '自动盲评未达到放行阈值', { evidence: evidencePath, failures, checks });
   const now = new Date().toISOString();
-  const verdict = { schema_version: '1.0', status: 'approved', auto_confirmed: true, reviewed_through: Number(evidence.reviewed_through), reviewer: 'autopilot-panel', reason: evidence.reason || '独立盲评达到自动放行阈值', score: Number(evidence.reader_score), platform_fit: Number(evidence.platform_fit), evidence: path.relative(project, evidencePath).replace(/\\/g, '/'), checks, updated_at: now };
+  const verdict = { schema_version: '1.0', status: 'approved', auto_confirmed: true, reviewed_through: Number(evidence.reviewed_through), reviewer: 'autopilot-panel', reason: evidence.reason || '独立盲评达到自动放行阈值', score: Number(evidence.reader_score), platform_fit: Number(evidence.platform_fit), evidence: path.relative(project, evidencePath).replace(/\\/g, '/'), audit, checks, updated_at: now };
   atomicWrite(path.join(project, PILOT_FILE), `${JSON.stringify(verdict, null, 2)}\n`);
   const next = { ...autopilot, phase: 'production', status: 'running', updated_at: now, revision_round: 0 };
   writeAutopilot(project, next);
@@ -142,8 +146,10 @@ function status(projectInput) {
   const project = path.resolve(projectInput);
   const { projectState, autopilot, pilot } = readState(project);
   const releaseToScale = autopilot.mode === 'autopilot' && pilot.status === 'approved' && pilot.auto_confirmed === true && Number(pilot.reviewed_through || 0) >= 3 && Number(pilot.score || 0) >= 8;
-  const next = autopilot.status === 'completed' ? '交付完结包' : autopilot.phase === 'production' ? `继续第 ${Number(projectState.updated_through || 0) + 1} 章事务` : `完成 ${autopilot.phase} 阶段后 transition`;
-  return { ok: true, command: 'status', project, mode: autopilot.mode, status: autopilot.status, phase: autopilot.phase, updated_through: Number(projectState.updated_through || 0), target_words: Number(projectState.target_words || autopilot.target_words || 0), pilot, release_to_scale: releaseToScale, next_action: next };
+  const updatedThrough = Number(projectState.updated_through || 0);
+  const reviewDue = autopilot.phase === 'production' && updatedThrough > Number(autopilot.last_review_through || 0) && updatedThrough > 0 && updatedThrough % Number(autopilot.chapter_review_interval || 10) === 0;
+  const next = autopilot.status === 'completed' ? '交付完结包' : reviewDue ? `执行第 ${updatedThrough} 章卷中/中段审计，再更新 last_review_through` : autopilot.phase === 'production' ? `继续第 ${updatedThrough + 1} 章事务` : `完成 ${autopilot.phase} 阶段后 transition`;
+  return { ok: true, command: 'status', project, mode: autopilot.mode, status: autopilot.status, phase: autopilot.phase, updated_through: updatedThrough, target_words: Number(projectState.target_words || autopilot.target_words || 0), pilot, release_to_scale: releaseToScale, review_due: reviewDue, next_action: next };
 }
 
 function run(argv = process.argv.slice(2)) {

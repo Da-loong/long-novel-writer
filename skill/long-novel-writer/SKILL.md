@@ -56,6 +56,7 @@ node <技能目录>/scripts/init-project.js --root <工作区> --title <书名> 
 │  ├─ characters.md           # 角色欲望、恐惧、秘密、能力、弧线
 │  ├─ relations.md            # 关系张力与变化节点
 │  ├─ reader-contract.md      # 类型承诺、目标读者、回报节奏
+│  ├─ platform-contract.md    # 官方平台事实、观察信号、更新时间
 │  └─ style-guide.md          # 视角、语体、禁区、样句
 ├─ outline/
 │  ├─ master-outline.md       # 全书阶段与终局
@@ -93,6 +94,8 @@ node <技能目录>/scripts/init-project.js --root <工作区> --title <书名> 
 3. 把作品归一为：题材标签、核心欲望、主角初始位、金手指/资源、首个强承诺、更新/字数、标题词根、简介承诺。
 4. 聚类重复机制，区分“稳定需求”与“短期拥挤”。
 5. 输出 3–5 个候选：一句话卖点、目标读者、熟悉感、差异点、前 10 章兑现、同质化风险、证据强度。
+
+官方平台页面写入 `settings/platform-contract.md`；将“官方硬事实”“本次样本观察”“第三方启发”分栏保存，并记录抓取日期。第三方文章中的固定推荐阈值只作为待验证假设，不直接约束正文。
 
 读取 `references/scanning/source-evidence.md`、`references/scanning/firecrawl-ranking.md`、`references/scanning/genre-trends.md` 与 `references/analysis/trend-analysis.md`。统一入口：
 
@@ -175,7 +178,7 @@ node <技能目录>/scripts/chapter-transaction.js begin <项目目录> --chapte
 node <技能目录>/scripts/chapter-transaction.js finish <项目目录> --chapter <N>
 ```
 
-需要体裁语感时读取对应正文卡；无人值守编排读取 `autopilot-orchestration.md`；连续生成、Canon 锁和中断恢复时读取 `production-orchestration.md` 与 `context-and-gates.md`；需要技巧时读取 `dialogue-mastery.md`、`writing-craft.md`、`hooks-*.md` 和 `format-and-structure.md`。
+需要体裁语感时读取对应正文卡；无人值守编排读取 `autopilot-orchestration.md` 与 `target-anchored-evaluation.md`；连续生成、Canon 锁和中断恢复时读取 `production-orchestration.md` 与 `context-and-gates.md`；需要技巧时读取 `dialogue-mastery.md`、`writing-craft.md`、`hooks-*.md` 和 `format-and-structure.md`。
 
 ## Phase 5：质量检查
 
@@ -192,6 +195,7 @@ node scripts/check-ai-patterns.js <章节或目录> --json
 node scripts/check-degeneration.js <章节或目录> --json
 node scripts/normalize-punctuation.js <章节或目录> --check
 node scripts/cap-utils.js count <章节或目录>
+node scripts/evidence-audit.js <项目目录> --input <目标锚点与审计.json>
 node scripts/validate-project.js <项目目录>
 node scripts/chapter-transaction.js status <项目目录>
 ```

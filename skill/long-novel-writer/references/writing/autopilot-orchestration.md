@@ -23,7 +23,7 @@ idle → discover → select → breakdown → design → pilot → production �
 - `design`：完成读者契约、故事圣经、人物、卷纲、章纲和伏笔台账。
 - `pilot`：生成黄金三章，执行读者指标和独立盲评。
 - `production`：逐章执行 `begin → 写作 → 更新状态 → finish → reader-metrics`。
-- `review`：每卷审计重复、节奏、Canon、承诺兑现和平台调性；失败则回到生产或设计。
+- `review`：每 10 章、每卷中点和卷尾审计重复、节奏、Canon、承诺兑现和平台调性；论文所示中段风险更高，因此中段审计优先级提升；失败则回到生产或设计。
 - `complete`：完成全书审计、交接文件、章节目录和交付包。
 
 ## 自动选项规则
@@ -49,6 +49,8 @@ idle → discover → select → breakdown → design → pilot → production �
 - `continuation_rate >= 0.67`；
 - `critical_failures = 0`；
 - 已评审第 1–3 章。
+
+提交前先运行 `node scripts/evidence-audit.js <项目目录> --input <自动盲评.json>`；它会核对目标锚点、读者复述和每条 finding 的 `path + quote` 是否真实存在。
 
 任一条件失败，自动重写黄金三章，最多 3 轮；仍失败则回退到 `breakdown`，重做卖点、读者契约和章拍，不在失败骨架上堆写。
 

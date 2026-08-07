@@ -54,7 +54,7 @@ function build(projectInput, options = {}) {
   const retrieveCount = Number.parseInt(options.retrieve || '3', 10);
   const terms = termsOf(options.query || '');
   const fixed = [
-    'settings/reader-contract.md', 'settings/style-guide.md', 'settings/story-bible.md', 'settings/characters.md', 'settings/relations.md',
+    'settings/reader-contract.md', 'settings/platform-contract.md', 'settings/style-guide.md', 'settings/story-bible.md', 'settings/characters.md', 'settings/relations.md',
     'outline/master-outline.md', 'outline/chapter-beats.md', 'outline/foreshadowing-ledger.md',
     'state/current-state.md', 'state/character-state.md', 'state/timeline.md', 'state/unresolved-hooks.md',
   ];
