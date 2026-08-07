@@ -247,3 +247,10 @@ node scripts/chapter-transaction.js status <项目目录>
 - 去 AI 痕迹：`references/deslop/`
 - 导入续写：`references/import/`
 - 可执行检查与榜单解析：`scripts/`
+
+
+## Human cold-read priority and evidence vault
+
+When a reader reports composition-like prose, weak continuation desire, platform mismatch, or hard-to-evaluate opening, load references/writing/reader-first-webnovel-repair.md, freeze production, and rewrite chapter 1. Automated metrics are preflight only.
+
+Every project stores source URLs and timestamps, immutable scan snapshots, breakdown/selection/outline derivations, dependency hashes, and a supervision dashboard. Initialization creates evidence/ and supervision/. Run scripts/project-audit.js <PROJECT> --write-manifest to refresh lineage. See references/operations/evidence-vault-and-supervision.md.

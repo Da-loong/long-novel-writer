@@ -56,6 +56,7 @@ function build(projectInput, options = {}) {
   const fixed = [
     'settings/reader-contract.md', 'settings/platform-contract.md', 'settings/style-guide.md', 'settings/story-bible.md', 'settings/characters.md', 'settings/relations.md',
     'outline/master-outline.md', 'outline/chapter-beats.md', 'outline/foreshadowing-ledger.md',
+    'evidence/sources/source-index.md', 'evidence/derivations/decision-log.md', 'supervision/dashboard.md', 'supervision/review-queue.md', 'supervision/stop-conditions.md',
     'state/current-state.md', 'state/character-state.md', 'state/timeline.md', 'state/unresolved-hooks.md',
   ];
   const selected = fixed.filter((name) => fs.existsSync(path.join(project, name))).map((name) => ({ tier: name.startsWith('state/') ? 'hot-state' : 'warm-core', name, score: null }));

@@ -91,6 +91,7 @@ function requirePilotApproval(project, state, chapter) {
   if (chapter <= 3 || Number(state.target_words || 0) < 300000) return;
   const autopilot = readJson(path.join(project, AUTOPILOT_FILE), { mode: 'supervised' });
   if (autopilot.mode === 'autopilot') {
+    if (autopilot.status === 'paused' || autopilot.status === 'blocked') throw new CliError('AUTOPILOT_PAUSED', '监管面板已暂停生产，先完成重写与真人复核', { supervision: path.join(project, 'supervision', 'dashboard.md') });
     const verdict = readJson(path.join(project, AUTOPILOT_PILOT_FILE), { status: 'pending', reviewed_through: 0, auto_confirmed: false });
     if (verdict.status === 'approved' && verdict.auto_confirmed === true && Number(verdict.reviewed_through || 0) >= 3 && Number(verdict.score || 0) >= 8) return;
     throw new CliError('PILOT_NOT_APPROVED', '自动盲评尚未达到放行阈值，已阻止规模化续写', {

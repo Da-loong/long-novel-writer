@@ -113,8 +113,9 @@ function transition(projectInput, options = {}) {
 
 function pilotPass(projectInput, options = {}) {
   const project = path.resolve(projectInput);
-  const { autopilot } = readState(project);
+  const { autopilot, pilot } = readState(project);
   if (autopilot.mode !== 'autopilot') throw new CliError('AUTOPILOT_NOT_STARTED', '先运行 autopilot.js start <项目目录>');
+  if (pilot.status === 'rejected') throw new CliError('HUMAN_REJECTION_ACTIVE', '真人冷读已拒绝，先完成 supervision/dashboard.md 中的重写与复核', { pilot: path.join(project, 'state', 'pilot-verdict.json'), supervision: path.join(project, 'supervision', 'dashboard.md') });
   const evidencePath = path.resolve(project, options.evidence || '');
   const evidence = readJson(evidencePath);
   if (!evidence) throw new CliError('PILOT_EVIDENCE_MISSING', '需要 --evidence 指向自动盲评 JSON', { evidence: evidencePath });
@@ -145,11 +146,12 @@ function pilotPass(projectInput, options = {}) {
 function status(projectInput) {
   const project = path.resolve(projectInput);
   const { projectState, autopilot, pilot } = readState(project);
-  const releaseToScale = autopilot.mode === 'autopilot' && pilot.status === 'approved' && pilot.auto_confirmed === true && Number(pilot.reviewed_through || 0) >= 3 && Number(pilot.score || 0) >= 8;
+  const humanRejected = pilot.status === 'rejected' || autopilot.status === 'paused' || autopilot.status === 'blocked';
+  const releaseToScale = !humanRejected && autopilot.mode === 'autopilot' && pilot.status === 'approved' && pilot.auto_confirmed === true && Number(pilot.reviewed_through || 0) >= 3 && Number(pilot.score || 0) >= 8;
   const updatedThrough = Number(projectState.updated_through || 0);
   const reviewDue = autopilot.phase === 'production' && updatedThrough > Number(autopilot.last_review_through || 0) && updatedThrough > 0 && updatedThrough % Number(autopilot.chapter_review_interval || 10) === 0;
   const next = autopilot.status === 'completed' ? '交付完结包' : reviewDue ? `执行第 ${updatedThrough} 章卷中/中段审计，再更新 last_review_through` : autopilot.phase === 'production' ? `继续第 ${updatedThrough + 1} 章事务` : `完成 ${autopilot.phase} 阶段后 transition`;
-  return { ok: true, command: 'status', project, mode: autopilot.mode, status: autopilot.status, phase: autopilot.phase, updated_through: updatedThrough, target_words: Number(projectState.target_words || autopilot.target_words || 0), pilot, release_to_scale: releaseToScale, review_due: reviewDue, next_action: next };
+  return { ok: true, command: 'status', project, mode: autopilot.mode, status: autopilot.status, phase: autopilot.phase, updated_through: updatedThrough, target_words: Number(projectState.target_words || autopilot.target_words || 0), pilot, human_rejected: humanRejected, release_to_scale: releaseToScale, review_due: reviewDue, next_action: humanRejected ? '先查看 supervision/dashboard.md，完成重写并重新提交真人复核' : next };
 }
 
 function run(argv = process.argv.slice(2)) {

@@ -31,6 +31,23 @@ test('initializer creates a complete, valid project without overwriting', () => 
   assert.equal(JSON.parse(second.stderr).error.code, 'PROJECT_EXISTS');
 });
 
+test('initializer creates evidence and supervision control surfaces', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lnw-evidence-'));
+  const project = init(temp, '证据监管测试');
+  for (const relative of [
+    'evidence/README.md',
+    'evidence/sources/source-index.md',
+    'evidence/lineage/manifest.json',
+    'supervision/dashboard.md',
+    'supervision/review-queue.md',
+    'supervision/stop-conditions.md',
+  ]) assert.equal(fs.existsSync(path.join(project, relative)), true, relative);
+  const audit = spawnSync(process.execPath, [path.join(scripts, 'project-audit.js'), project, '--write-manifest'], { encoding: 'utf8' });
+  assert.equal(audit.status, 0, audit.stderr);
+  assert.equal(JSON.parse(audit.stdout).missing_supervision_files.length, 0);
+  assert.equal(fs.existsSync(path.join(project, 'evidence', 'lineage', 'manifest.json')), true);
+});
+
 test('validator rejects non-padded chapter filenames with an actionable example', () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lnw-project-name-'));
   const project = init(temp, '章名测试');

@@ -48,15 +48,25 @@ function build(projectInput, options = {}) {
   const updatedThrough = Number(projectState.updated_through || 0);
   const nextChapter = Number.parseInt(options['next-chapter'] || String(updatedThrough + 1), 10);
   if (!Number.isInteger(nextChapter) || nextChapter <= 0) throw new CliError('INVALID_CHAPTER', 'next-chapter 必须是正整数', { nextChapter });
-  const releaseToScale = (pilot.status === 'approved' && Number(pilot.reviewed_through || 0) >= 3 && pilot.human_confirmed === true)
-    || (autopilot.mode === 'autopilot' && autopilotPilot.status === 'approved' && autopilotPilot.auto_confirmed === true && Number(autopilotPilot.score || 0) >= 8 && Number(autopilotPilot.reviewed_through || 0) >= 3);
+  const releaseToScale = (autopilot.status !== 'paused' && autopilot.status !== 'blocked') && ((pilot.status === 'approved' && Number(pilot.reviewed_through || 0) >= 3 && pilot.human_confirmed === true)
+    || (autopilot.mode === 'autopilot' && autopilotPilot.status === 'approved' && autopilotPilot.auto_confirmed === true && Number(autopilotPilot.score || 0) >= 8 && Number(autopilotPilot.reviewed_through || 0) >= 3));
   const nextAction = transaction.phase === 'drafting'
     ? `先完成或中止 state/chapter-transaction.json 中的第 ${transaction.chapter || '?'} 章事务`
     : nextChapter === 4 && Number(projectState.target_words || 0) >= 300000 && !releaseToScale
       ? '先完成黄金三章真人冷读并写入 pilot-review verdict，再开始第4章'
       : `运行 chapter-transaction.js begin --chapter ${nextChapter}，生成上下文包后再写正文`;
   const feedback = readText(project, 'state/feedback-ledger.md', '（暂无已沉淀反馈）');
-  const markdown = `# 当前会话交接\n\n- 生成时间：${new Date().toISOString()}\n- 项目：${projectState.title || path.basename(project)}\n- 题材：${projectState.genre || '未指定'}\n- 目标字数：${projectState.target_words || '未指定'}\n- 已落盘至：第 ${updatedThrough} 章\n- 下一章：第 ${nextChapter} 章\n- 最近正文：${latest ? `manuscript/${latest}` : '暂无'}\n- 运行模式：${autopilot.mode}\n- 自动阶段：${autopilot.phase}\n- 规模化放行：${releaseToScale ? '已放行' : '未放行'}\n\n## 下一动作\n\n${nextAction}\n\n## 当前事实源\n\n### current-state.md\n\n${readText(project, 'state/current-state.md')}\n\n### character-state.md\n\n${readText(project, 'state/character-state.md')}\n\n### unresolved-hooks.md\n\n${readText(project, 'state/unresolved-hooks.md')}\n\n## 最近反馈（只读；修复后追加新条目）\n\n${feedback}\n\n## 事务、人工试读与自动盲评\n\n\`chapter-transaction.json\`：\n\n\`\`\`json\n${JSON.stringify(transaction, null, 2)}\n\`\`\`\n\n\`pilot-verdict.json\`：\n\n\`\`\`json\n${JSON.stringify(pilot, null, 2)}\n\`\`\`\n\n\`autopilot.json\`：\n\n\`\`\`json\n${JSON.stringify(autopilot, null, 2)}\n\`\`\`\n\n\`autopilot-pilot.json\`：\n\n\`\`\`json\n${JSON.stringify(autopilotPilot, null, 2)}\n\`\`\`\n`;
+  const markdown = `# 当前会话交接\n\n- 生成时间：${new Date().toISOString()}\n- 项目：${projectState.title || path.basename(project)}\n- 题材：${projectState.genre || '未指定'}\n- 目标字数：${projectState.target_words || '未指定'}\n- 已落盘至：第 ${updatedThrough} 章\n- 下一章：第 ${nextChapter} 章\n- 最近正文：${latest ? `manuscript/${latest}` : '暂无'}\n- 运行模式：${autopilot.mode}\n- 自动阶段：${autopilot.phase}\n- 规模化放行：${releaseToScale ? '已放行' : '未放行'}\n\n## 下一动作\n\n${nextAction}\n\n## 当前事实源\n\n### current-state.md\n\n${readText(project, 'state/current-state.md')}\n\n### character-state.md\n\n${readText(project, 'state/character-state.md')}\n\n### unresolved-hooks.md\n\n${readText(project, 'state/unresolved-hooks.md')}\n\n## 最近反馈（只读；修复后追加新条目）\n\n${feedback}\n\n## 事务、人工试读与自动盲评\n\n\`chapter-transaction.json\`：\n\n\`\`\`json\n${JSON.stringify(transaction, null, 2)}\n\`\`\`\n\n\`pilot-verdict.json\`：\n\n\`\`\`json\n${JSON.stringify(pilot, null, 2)}\n\`\`\`\n\n\`autopilot.json\`：\n\n\`\`\`json\n${JSON.stringify(autopilot, null, 2)}\n\`\`\`\n\n\`autopilot-pilot.json\`：\n\n\`\`\`json\n${JSON.stringify(autopilotPilot, null, 2)}\n\`\`\`\n
+
+## Evidence and supervision
+
+- evidence/sources/source-index.md
+- evidence/derivations/decision-log.md
+- evidence/lineage/manifest.json
+- supervision/dashboard.md
+- supervision/review-queue.md
+- supervision/stop-conditions.md
+`;
   return { ok: true, project, output: path.join(project, 'state', 'handoff-current.md'), next_chapter: nextChapter, latest_chapter: latest, release_to_scale: releaseToScale, markdown };
 }
 
