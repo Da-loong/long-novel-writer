@@ -37,7 +37,9 @@ test('initializer creates evidence and supervision control surfaces', () => {
   for (const relative of [
     'evidence/README.md',
     'evidence/sources/source-index.md',
+    'evidence/sources/writer-classroom-index.md',
     'evidence/lineage/manifest.json',
+    'settings/platform-classroom-map.md',
     'supervision/dashboard.md',
     'supervision/review-queue.md',
     'supervision/stop-conditions.md',

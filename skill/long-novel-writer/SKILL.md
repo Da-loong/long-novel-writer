@@ -254,3 +254,9 @@ node scripts/chapter-transaction.js status <项目目录>
 When a reader reports composition-like prose, weak continuation desire, platform mismatch, or hard-to-evaluate opening, load references/writing/reader-first-webnovel-repair.md, freeze production, and rewrite chapter 1. Automated metrics are preflight only.
 
 Every project stores source URLs and timestamps, immutable scan snapshots, breakdown/selection/outline derivations, dependency hashes, and a supervision dashboard. Initialization creates evidence/ and supervision/. Run scripts/project-audit.js <PROJECT> --write-manifest to refresh lineage. See references/operations/evidence-vault-and-supervision.md.
+
+## Official platform curriculum routing
+
+For Tomato/Fanqie projects, load `references/platform/fanqie-writer-classroom-playbook.md` before scanning, outlining, or drafting. It is the execution summary of the official Writer Classroom's platform, beginner, genre, craft, and author-interview material. Record the source batch and the project-specific adoption decisions in `evidence/sources/writer-classroom-index.md` and `settings/platform-classroom-map.md`; do not replace the playbook with generic web-writing advice. The classroom gates (topic promise, golden rhythm, opening/hook, scene/action/emotion/dialogue, character network, upgrade logic, update buffer, and completion audit) are release criteria, not optional polish.
+
+Run `node scripts/classroom-audit.js <PROJECT>` before production. A `ready_for_classroom_release: false` result keeps the project in planning/rewrite until all five official categories are mapped and the project has no pending classroom adoption items.
