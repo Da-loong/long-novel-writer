@@ -16,12 +16,16 @@ const TRACKED = [
   'settings/reader-contract.md',
   'settings/platform-contract.md',
   'settings/platform-classroom-map.md',
+  'settings/workflow-policy.json',
   'evidence/sources/source-index.md',
   'evidence/sources/writer-classroom-index.md',
   'evidence/derivations/decision-log.md',
   'supervision/dashboard.md',
   'supervision/review-queue.md',
   'supervision/stop-conditions.md',
+  'state/workflow-run.json',
+  'state/workflow-ledger.jsonl',
+  'state/post-hoc-ledger.jsonl',
 ];
 
 function argsOf(argv) {

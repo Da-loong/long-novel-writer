@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { extname, join, relative, resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const root = resolve(import.meta.dirname, '..');
 const acceptance = JSON.parse(readFileSync(join(root, 'evals', 'acceptance.json'), 'utf8'));
@@ -12,6 +13,10 @@ const errors = [];
 const evidenceErrors = [];
 const forbiddenEvidence = new Set(['model_self_rating', 'readme_claim', 'file_count']);
 const evidenceRequiringPassingTests = new Set(['test', 'scenario']);
+const forwardPanel = spawnSync(process.execPath, [join(root, 'tools', 'validate-forward-panel.mjs')], { cwd: root, encoding: 'utf8' });
+if (forwardPanel.status !== 0) evidenceErrors.push('fresh forward panel validation failed');
+let forwardPanelReport = null;
+try { forwardPanelReport = JSON.parse(forwardPanel.stdout || '{}'); } catch { evidenceErrors.push('fresh forward panel emitted invalid JSON'); }
 function walk(dir, predicate, files = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const target = join(dir, entry.name);
@@ -65,6 +70,6 @@ const belowMinimum = acceptance.dimensions.flatMap((expected) => {
   return actual && actual.score < expected.minimum ? [{ id: expected.id, score: actual.score, minimum: expected.minimum }] : [];
 });
 const releaseReady = errors.length === 0 && evidenceErrors.length === 0 && blockers.length === 0 && belowMinimum.length === 0 && computedScore >= acceptance.releaseThreshold;
-const report = { version: result.version, source: existsSync(currentPath) ? 'current' : 'baseline', computedScore, threshold: acceptance.releaseThreshold, releaseReady, currentPassingTestRun: passingTestRun, blockers, belowMinimum, validationErrors: errors, evidenceErrors };
+const report = { version: result.version, source: existsSync(currentPath) ? 'current' : 'baseline', computedScore, threshold: acceptance.releaseThreshold, releaseReady, currentPassingTestRun: passingTestRun, forwardPanel: forwardPanelReport, blockers, belowMinimum, validationErrors: errors, evidenceErrors };
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 if (errors.length || evidenceErrors.length || (process.argv.includes('--release') && !releaseReady)) process.exitCode = 1;
