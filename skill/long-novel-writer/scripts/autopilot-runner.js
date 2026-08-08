@@ -18,6 +18,7 @@ const chapterGate = require('./chapter-gate');
 const readerMetrics = require('./reader-metrics');
 const aiPatterns = require('./check-ai-patterns');
 const degeneration = require('./check-degeneration');
+const formatGate = require('./format-gate');
 const handoff = require('./handoff');
 
 const RUN_FILE = 'state/autopilot-run.json';
@@ -288,19 +289,20 @@ function quarantineChapter(project, chapter, attempt) {
   });
 }
 
-function ensureQa(project, chapter, metrics, ai, deg) {
+function ensureQa(project, chapter, metrics, ai, deg, format) {
   const relative = `analysis/autopilot-qa-ch${String(chapter).padStart(4, '0')}.json`;
-  const payload = { schema_version: '1.0', chapter, metrics, ai_patterns: ai, degeneration: deg, created_at: new Date().toISOString() };
+  const payload = { schema_version: '1.0', chapter, metrics, ai_patterns: ai, degeneration: deg, format, created_at: new Date().toISOString() };
   writeJson(path.join(project, relative), payload);
   if (!fs.existsSync(path.join(project, 'analysis', 'qa-report.md'))) atomicWrite(path.join(project, 'analysis', 'qa-report.md'), `# QA chapter ${chapter}\n\n- deterministic report: ${relative}\n`);
   return relative;
 }
 
-function criticalQuality(metrics, ai, deg) {
+function criticalQuality(metrics, ai, deg, format) {
   const aiCount = Number(ai?.findings?.length || 0);
   const degCount = Number(deg?.findings?.filter((finding) => finding.rule !== '绡囧箙寮傚父').length || 0);
   const hardWarnings = (metrics?.warnings || []).filter((warning) => ['OPENING_ACTION_DELAY', 'EXPOSITION_BLOCK'].includes(warning.code));
-  return { ok: aiCount === 0 && degCount === 0 && hardWarnings.length === 0, ai_count: aiCount, degeneration_count: degCount, hard_warnings: hardWarnings };
+  const formatErrors = Number(format?.errors?.length || 0);
+  return { ok: aiCount === 0 && degCount === 0 && formatErrors === 0 && hardWarnings.length === 0, ai_count: aiCount, degeneration_count: degCount, format_errors: formatErrors, hard_warnings: hardWarnings };
 }
 
 function commitState(project, chapter, words) {
@@ -335,7 +337,10 @@ function chapterPrompt(project, chapter, transactionResult) {
     `Write exactly chapter ${chapter}. The transaction and context pack already exist: ${transactionResult.context}.`,
     'Read the local skill, reader contract, platform contract, chapter beat, context pack, current state, and unresolved hooks.',
     `Create one file matching manuscript/ch-${String(chapter).padStart(4, '0')}-<title>.md with complete publishable Chinese prose.`,
-    'Move through a visible action or choice quickly; make dialogue carry purpose; end on a concrete changed situation or hook.',
+    'Format contract: keep one chapter title only, then plain prose separated by single blank lines; no outline headings, lists, tables, code fences, logs, or self-evaluation.',
+    'Keep paragraphs mobile-first (normally under 260 Chinese characters) and split long sentences at action, reaction, dialogue, and result beats. Put purposeful dialogue in its own paragraph.',
+    'Move through a visible action or choice quickly; every scene must change a goal, obstacle, relationship, clue, or resource. Do not chain paragraphs with “然后/接着/随后” as a timeline summary.',
+    'End on a concrete changed situation or unanswered hook. The final file must read like publishable Tomato/Fanqie web fiction, not a plan or a chronological log.',
     'Do not put planning notes, placeholders, model commentary, or markdown tables in the manuscript. Do not edit settings or outline files during the transaction.',
     'If continuity files need a factual update, update state/current-state.md, state/character-state.md, state/timeline.md, and state/unresolved-hooks.md only. Leave project-state updated_through for the orchestrator.',
   ].join('\n');
@@ -344,7 +349,7 @@ function chapterPrompt(project, chapter, transactionResult) {
 function finishWorkflowFirstChapter(project, chapter, manuscript, config, options) {
   let flow = workflow.status(project);
   if (flow.current_node === 'mvp') {
-    const qa = fs.existsSync(path.join(project, 'analysis', 'qa-report.md')) ? 'analysis/qa-report.md' : ensureQa(project, chapter, {}, {}, {});
+    const qa = fs.existsSync(path.join(project, 'analysis', 'qa-report.md')) ? 'analysis/qa-report.md' : ensureQa(project, chapter, {}, {}, {}, {});
     workflow.checkpoint(project, 'mvp', { artifacts: `${relativePath(project, manuscript)},${qa}` });
     flow = workflow.status(project);
   }
@@ -381,10 +386,11 @@ function runChapter(project, config, options, run) {
   const metrics = readerMetrics.analyzeText(manuscript, text);
   const ai = aiPatterns.analyze(manuscript, text);
   const deg = degeneration.analyze(manuscript, text);
-  const quality = criticalQuality(metrics, ai, deg);
+  const format = formatGate.analyze(manuscript, text);
+  const quality = criticalQuality(metrics, ai, deg, format);
   const wordsBefore = Number(before.word_count || 0);
   const words = wordsBefore + countText(text).chinese_chars;
-  const qa = ensureQa(project, actualChapter, metrics, ai, deg);
+  const qa = ensureQa(project, actualChapter, metrics, ai, deg, format);
   if (!quality.ok) throw new CliError('CHAPTER_QUALITY_GATE_FAILED', `Chapter ${actualChapter} quality gate failed`, { chapter: actualChapter, quality, qa });
   const currentStateFile = path.join(project, 'state', 'current-state.md');
   const currentStateBefore = fs.existsSync(currentStateFile) ? fs.readFileSync(currentStateFile, 'utf8') : null;
@@ -487,7 +493,7 @@ function approvePanel(project, config, options, run) {
         invokeAgent(project, 'pilot-repair', [
           'Repair chapters 1-3 for the failing reader gate. Read analysis/autopilot-pilot.json and the raw reports under analysis/autopilot-panel/.',
           'Preserve the locked settings and outline. Rewrite only manuscript chapters 1-3 to fix concrete comprehension, hook, continuity, or platform-fit findings.',
-          'Run the local chapter gate mentally and save complete prose; do not write a self-rating.',
+          'Keep the Fanqie mobile format: one title, single blank lines, short paragraphs, purposeful standalone dialogue, visible action/result beats, and no outline/list/table/chronological-log prose. Run the local format and chapter gates mentally and save complete prose; do not write a self-rating.',
         ].join('\n'), config, options);
         for (let chapter = 1; chapter <= 3; chapter++) {
           const gate = chapterGate.gate(project, { stage: 'post', chapter: String(chapter), 'min-chars': String(config.chapter_min_chars), ...(config.chapter_max_chars === null ? {} : { 'max-chars': String(config.chapter_max_chars) }) });

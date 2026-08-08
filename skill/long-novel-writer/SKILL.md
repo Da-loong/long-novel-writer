@@ -277,3 +277,7 @@ node scripts/autopilot-runner.js status <PROJECT>
 ```
 
 `autopilot-runner.js` invokes the configured Agent, saves every prompt and transcript under `state/agent-runs/`, retries bounded failures, commits one chapter at a time, runs post-hoc continuity, performs the three-reader pilot, and pauses on a rejection or failed gate. `--max-chapters` is a resumable budget slice for tests; omit it for the configured target word count. Read `references/operations/autopilot-runner.md` before changing the command or model adapter.
+
+## 番茄正文格式与流水账门禁
+
+写作时把 `references/writing/format-and-structure.md` 当作发布格式契约，而不是把大纲表格直接改成正文。每章交付前运行 `scripts/format-gate.js`（参数为章节路径和 `--json`）；它检查移动端段落密度、长句、空行、对白独立成段、Markdown 残留、场景推进和“然后—接着—随后”式流水账链。`chapter-gate.js --stage post` 与 `autopilot-runner.js` 已自动接入该门禁：格式错误或流水账硬错误会让当前章节回到重写，低事件密度和对白缺失只进入冷读警告。

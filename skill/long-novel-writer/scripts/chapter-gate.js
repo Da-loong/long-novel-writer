@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { CliError, emitError, countText } = require('./cap-utils');
 const { validate } = require('./validate-project');
+const { analyze: analyzeFormat } = require('./format-gate');
 
 function argsOf(argv) {
   const args = { stage: 'pre', 'min-chars': '1200' };
@@ -77,7 +78,8 @@ function gate(projectInput, options = {}) {
     if (!chapterName) add('error', 'CHAPTER_FILE_MISSING', 'manuscript', `chapter ${target}`);
     else {
       const relative = `manuscript/${chapterName}`;
-      const text = fs.readFileSync(path.join(manuscript, chapterName), 'utf8');
+      const manuscriptFile = path.join(manuscript, chapterName);
+      const text = fs.readFileSync(manuscriptFile, 'utf8');
       const counts = countText(text);
       const minimum = Number.parseInt(options['min-chars'] || '1200', 10);
       const maximum = options['max-chars'] === undefined ? null : Number.parseInt(options['max-chars'], 10);
@@ -89,6 +91,9 @@ function gate(projectInput, options = {}) {
       if (/(?:TODO|TBD|待补|此处略|若干字|省略|占位|待续)/i.test(text)) add('error', 'PLACEHOLDER_CONTENT', relative, 'draft contains placeholder content');
       const duplicateRatio = duplicateParagraphRatio(text);
       if (duplicateRatio > 0.12) add('error', 'DUPLICATE_PARAGRAPHS', relative, `ratio=${duplicateRatio.toFixed(3)}`);
+      const format = analyzeFormat(manuscriptFile, text, options);
+      for (const item of format.errors) add('error', item.code, relative, item.detail);
+      for (const item of format.warnings) add('warning', item.code, relative, item.detail);
     }
     if (Number(state.updated_through) !== target) add('error', 'STATE_NOT_COMMITTED', 'state/project-state.json', `updated_through=${state.updated_through}, target=${target}`);
   }

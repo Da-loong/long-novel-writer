@@ -24,7 +24,9 @@ function preparedProject() {
 }
 
 function writeChapterAndState(project, repeats = 30) {
-  fs.writeFileSync(path.join(project, 'manuscript', 'ch-0001-first.md'), `# 第一章\n\n${'夜色压住码头，林舟握紧账本向前走。'.repeat(repeats)}\n`, 'utf8');
+  const starts = ['林舟', '保安', '雨声', '账本', '门缝', '远处', '水沟', '灯光'];
+  const draft = Array.from({ length: repeats }, (_, index) => `${starts[index % starts.length]}抬手翻开账本，门外脚步停下，线索被他攥在掌心${index + 1}。`).join('\n\n');
+  fs.writeFileSync(path.join(project, 'manuscript', 'ch-0001-first.md'), `# 第一章\n\n${draft}\n`, 'utf8');
   const stateFile = path.join(project, 'state', 'project-state.json');
   const state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); state.updated_through = 1;
   fs.writeFileSync(stateFile, `${JSON.stringify(state, null, 2)}\n`, 'utf8');

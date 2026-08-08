@@ -73,7 +73,9 @@ test('context pack retrieves relevant cold chapters and marks tiers', () => {
 test('post gate requires manuscript quality and committed state', () => {
   const project = initializedProject();
   const manuscript = path.join(project, 'manuscript');
-  fs.writeFileSync(path.join(manuscript, 'ch-0001-first.md'), `# 第一章\n\n${'夜色压住码头，林舟握紧账本向前走。'.repeat(30)}\n`, 'utf8');
+  const starts = ['林舟', '保安', '雨声', '账本', '门缝', '远处', '水沟', '灯光'];
+  const draft = Array.from({ length: 30 }, (_, index) => `${starts[index % starts.length]}抬手翻开账本，门外脚步停下，线索被他攥在掌心${index + 1}。`).join('\n\n');
+  fs.writeFileSync(path.join(manuscript, 'ch-0001-first.md'), `# 第一章\n\n${draft}\n`, 'utf8');
   let report = gate(project, { stage: 'post', chapter: '1', 'min-chars': '100' });
   assert.ok(report.errors.some((item) => item.code === 'STATE_NOT_COMMITTED'));
   const stateFile = path.join(project, 'state', 'project-state.json');

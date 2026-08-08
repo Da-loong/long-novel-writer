@@ -109,3 +109,11 @@ node "$skill\scripts\autopilot-runner.js" status .\BOOK
 ```
 
 Use `--max-chapters N` for a bounded test slice. The runner pauses at the three-chapter cold-reader gate, retries bounded failures, and stores evidence under the book directory.
+
+## Fanqie mobile manuscript format
+
+Each chapter is checked by `scripts/format-gate.js` before commit. The gate keeps one chapter title, single blank lines, short mobile-first paragraphs, purposeful standalone dialogue, and plain publishable prose. Markdown tables/lists/code fences, outline headings, crowded paragraphs, repeated timeline openers, and low-action subject chains are recorded as format findings; hard findings send the current chapter back to rewrite and are preserved in `analysis/autopilot-qa-chXXXX.json`.
+
+```powershell
+node "$skill\scripts\format-gate.js" .\BOOK\manuscript --json
+```
