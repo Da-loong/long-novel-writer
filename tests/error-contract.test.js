@@ -7,7 +7,7 @@ const { spawnSync } = require('node:child_process');
 
 const scripts = path.join(__dirname, '..', 'skill', 'long-novel-writer', 'scripts');
 
-for (const script of ['cap-utils.js', 'check-ai-patterns.js', 'check-degeneration.js', 'normalize-punctuation.js', 'init-project.js', 'validate-project.js', 'rank-scan.js', 'context-pack.js', 'chapter-gate.js', 'chapter-transaction.js', 'pilot-review.js', 'import-inventory.js', 'reader-metrics.js', 'handoff.js', 'autopilot.js', 'evidence-audit.js', 'classroom-audit.js', 'workflow-runner.js']) {
+for (const script of ['cap-utils.js', 'check-ai-patterns.js', 'check-degeneration.js', 'normalize-punctuation.js', 'init-project.js', 'validate-project.js', 'rank-scan.js', 'context-pack.js', 'chapter-gate.js', 'chapter-transaction.js', 'pilot-review.js', 'import-inventory.js', 'reader-metrics.js', 'handoff.js', 'autopilot.js', 'evidence-audit.js', 'classroom-audit.js', 'workflow-runner.js', 'autopilot-runner.js']) {
   test(`${script} emits a structured usage error`, () => {
     const result = spawnSync(process.execPath, [path.join(scripts, script)], { encoding: 'utf8' });
     assert.notEqual(result.status, 0);

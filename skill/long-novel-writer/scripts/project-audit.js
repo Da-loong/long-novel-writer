@@ -26,6 +26,8 @@ const TRACKED = [
   'state/workflow-run.json',
   'state/workflow-ledger.jsonl',
   'state/post-hoc-ledger.jsonl',
+  'state/autopilot-run.json',
+  'state/autopilot-run-ledger.jsonl',
 ];
 
 function argsOf(argv) {

@@ -97,3 +97,15 @@ node "$skill\scripts\chapter-transaction.js" finish .\雾港来信 --chapter 1
 ## 许可证
 
 MIT。第三方项目及服务保持各自许可证与使用条款。
+
+## Durable unattended run
+
+A one-start execution is available through the bundled bridge. It records every Agent prompt/transcript and resumes from the last committed chapter:
+
+```powershell
+node "$skill\scripts\autopilot-runner.js" start .\BOOK
+node "$skill\scripts\autopilot-runner.js" run .\BOOK --model "MODEL" --quiet
+node "$skill\scripts\autopilot-runner.js" status .\BOOK
+```
+
+Use `--max-chapters N` for a bounded test slice. The runner pauses at the three-chapter cold-reader gate, retries bounded failures, and stores evidence under the book directory.

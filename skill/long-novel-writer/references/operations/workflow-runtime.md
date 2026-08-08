@@ -23,7 +23,10 @@ real files and stores their SHA-256 values in `state/workflow-ledger.jsonl`.
 `post-hoc` appends a chapter continuity record and is required before the next
 chapter transaction.
 
-The runner does not invent prose or claim a model call occurred. Agent nodes
-are executed by the active writing agent; scripts provide deterministic
-validation and persistence. This separation keeps model work flexible while
-making control flow, recovery and audit evidence reproducible.
+`workflow-runner.js` remains the low-level manifest/checkpoint API. For a
+single-start production run, `autopilot-runner.js` is the active bridge: it
+invokes the configured agent, stores prompts/transcripts, verifies artifacts,
+wraps each chapter in a transaction, and calls the low-level API. The bridge
+does not accept a chat response as proof of completion; only a real file plus
+the corresponding gate advances state. This separation keeps model work
+flexible while making control flow, recovery and audit evidence reproducible.
