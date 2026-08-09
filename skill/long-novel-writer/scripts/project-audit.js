@@ -38,6 +38,7 @@ const TRACKED = [
   'state/character-contracts.json',
   'state/foreshadowing-index.json',
   'state/foreshadowing-progress.json',
+  'state/hook-agenda.json',
   'state/pacing-ledger.json',
 ];
 

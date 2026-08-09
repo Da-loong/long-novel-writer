@@ -9,6 +9,7 @@ const { spawnSync } = require('node:child_process');
 const runner = require('../skill/long-novel-writer/scripts/autopilot-runner');
 const { audit } = require('../skill/long-novel-writer/scripts/project-audit');
 const chapterReaderReview = require('../skill/long-novel-writer/scripts/chapter-reader-review');
+const hookAgenda = require('../skill/long-novel-writer/scripts/hook-agenda');
 
 function projectOf() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lnw-autopilot-'));
@@ -36,11 +37,14 @@ function contractReviewFields(request, chapter) {
   const evidence = `林越把第${chapter}张欠条拍在柜台上。`;
   const style = JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'style-contract.json'), 'utf8')).signals || [];
   const characters = JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'character-contracts.json'), 'utf8')).characters || [];
+  const agenda = hookAgenda.read(request.project);
+  const dueHooks = Number(agenda.target_chapter) === Number(chapter) ? agenda.must_advance : [];
   return {
-    schema_version: '1.4',
+    schema_version: '1.5',
     style_signal_checks: style.map((signal) => ({ id: signal.id, verdict: 'pass', evidence, note: 'The chapter opens with a concrete action before exposition.' })),
     character_contract_checks: characters.filter((character) => body.includes(character.name)).map((character) => ({ id: character.id, verdict: 'pass', evidence, note: 'The lead acts toward the debt problem under immediate pressure without claiming hidden knowledge.' })),
     editorial_dimension_checks: chapterReaderReview.EDITORIAL_DIMENSIONS.map((dimension) => ({ id: dimension.id, verdict: 'pass', evidence, note: `The prose supplies literal scene evidence for ${dimension.id}.` })),
+    hook_agenda_checks: dueHooks.map((hook) => ({ id: hook.id, verdict: 'pass', evidence, note: `The prose gives ${hook.id} a visible scene movement.` })),
   };
 }
 

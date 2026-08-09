@@ -100,7 +100,41 @@ test('schema 1.4 binds a focused editorial-dimension pass to literal chapter evi
   assert.throws(() => readerReview.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_READER_REVIEW_INVALID');
   fs.writeFileSync(path.join(project, relative), JSON.stringify(report({ schema_version: '1.4', verdict: 'revise', editorial_dimension_checks: complete.map((item) => item.id === 'outline_delivery' ? { ...item, verdict: 'fail', note: 'The prose summarizes the promised decisive movement.' } : item) }), null, 2), 'utf8');
   const result = readerReview.validate(project, { chapter: '1', file: relative });
-  assert.equal(result.data.schema_version, '1.4');
+  assert.equal(result.data.schema_version, '1.5');
   assert.deepEqual(result.data.editorial_dimension_failures, ['outline_delivery']);
   assert.equal(result.data.should_revise, true);
+});
+
+
+test('schema 1.5 turns stale-hook movement into literal cold-reader proof', () => {
+  const project = fixtureProject();
+  const relative = 'analysis/chapter-reader-review-ch0001-r01.json';
+  const evidence = report().scene_evidence.goal.evidence;
+  const complete = readerReview.EDITORIAL_DIMENSIONS.map((dimension) => ({
+    id: dimension.id, verdict: 'pass', evidence, note: `Literal scene evidence supports ${dimension.id}.`,
+  }));
+  fs.writeFileSync(path.join(project, 'state', 'hook-agenda.json'), JSON.stringify({
+    schema_version: '1.0', target_chapter: 1,
+    must_advance: [{ id: 'F-01', content: 'the marked receipt', last_advanced_chapter: 1, payoff_deadline_chapter: 3 }],
+    active_hooks: [], stale_debt: [], eligible_resolve: [], warnings: [], recommendations: [], audit: {},
+  }, null, 2), 'utf8');
+  fs.writeFileSync(path.join(project, relative), JSON.stringify(report({
+    schema_version: '1.5', verdict: 'revise', editorial_dimension_checks: complete,
+    hook_agenda_checks: [{ id: 'F-01', verdict: 'fail', evidence, note: 'The receipt is repeated but receives no new evidence, consequence, escalation, or payoff.' }],
+  }), null, 2), 'utf8');
+  const result = readerReview.validate(project, { chapter: '1', file: relative });
+  assert.equal(result.data.schema_version, '1.5');
+  assert.deepEqual(result.data.must_advance_hooks_due.map((hook) => hook.id), ['F-01']);
+  assert.deepEqual(result.data.hook_agenda_failures, ['F-01']);
+  assert.equal(result.data.should_revise, true);
+
+  fs.writeFileSync(path.join(project, relative), JSON.stringify(report({
+    schema_version: '1.4', verdict: 'revise', editorial_dimension_checks: complete,
+  }), null, 2), 'utf8');
+  assert.throws(() => readerReview.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_READER_REVIEW_INVALID');
+
+  fs.writeFileSync(path.join(project, relative), JSON.stringify(report({
+    schema_version: '1.5', verdict: 'pass', editorial_dimension_checks: complete,
+  }), null, 2), 'utf8');
+  assert.throws(() => readerReview.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_READER_REVIEW_INVALID');
 });

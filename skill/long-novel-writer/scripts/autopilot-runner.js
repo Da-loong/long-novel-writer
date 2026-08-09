@@ -26,6 +26,7 @@ const feedbackRules = require('./feedback-rules');
 const styleContract = require('./style-contract');
 const characterContract = require('./character-contract');
 const foreshadowingReconcile = require('./foreshadowing-reconcile');
+const hookAgenda = require('./hook-agenda');
 const pacingLedger = require('./pacing-ledger');
 
 const RUN_FILE = 'state/autopilot-run.json';
@@ -311,9 +312,9 @@ function quarantineChapter(project, chapter, attempt) {
   });
 }
 
-function ensureQa(project, chapter, metrics, ai, deg, format, revisionPasses = [], readerReviews = [], chapterFactReport = null, foreshadowingProgress = null) {
+function ensureQa(project, chapter, metrics, ai, deg, format, revisionPasses = [], readerReviews = [], chapterFactReport = null, foreshadowingProgress = null, hookAgendaReport = null) {
   const relative = `analysis/autopilot-qa-ch${String(chapter).padStart(4, '0')}.json`;
-  const payload = { schema_version: '1.4', chapter, metrics, ai_patterns: ai, degeneration: deg, format, revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: chapterFactReport, foreshadowing_progress: foreshadowingProgress, created_at: new Date().toISOString() };
+  const payload = { schema_version: '1.5', chapter, metrics, ai_patterns: ai, degeneration: deg, format, revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: chapterFactReport, foreshadowing_progress: foreshadowingProgress, hook_agenda: hookAgendaReport, created_at: new Date().toISOString() };
   writeJson(path.join(project, relative), payload);
   if (!fs.existsSync(path.join(project, 'analysis', 'qa-report.md'))) atomicWrite(path.join(project, 'analysis', 'qa-report.md'), `# QA chapter ${chapter}\n\n- deterministic report: ${relative}\n`);
   return relative;
@@ -342,19 +343,22 @@ function readerReviewPrompt(project, chapter, manuscript, output, minScore) {
   const dueStyleSignals = styleContract.due(project, chapter);
   const manuscriptBody = fs.readFileSync(manuscript, 'utf8').replace(/^#{1,6}[^\n]*(?:\r?\n|$)/, '').trim();
   const dueCharacterContracts = characterContract.due(project, chapter, manuscriptBody);
+  const agenda = hookAgenda.read(project);
+  const mustAdvanceHooks = Number(agenda.target_chapter) === Number(chapter) ? agenda.must_advance : [];
   return [
     `You are an independent cold reader reviewing Chinese web-novel chapter ${chapter}. Do not edit any file except the requested report.`,
     `Project root: ${project}`,
-    `Read the manuscript ${relativePath(project, manuscript)}, its binding card state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, reader contract, platform contract, context pack, current state, state/feedback-rules.json, state/style-contract.json, and state/character-contracts.json.`,
+    `Read the manuscript ${relativePath(project, manuscript)}, its binding card state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, reader contract, platform contract, context pack, current state, state/feedback-rules.json, state/style-contract.json, state/character-contracts.json, and state/hook-agenda.json.`,
     `Write strict JSON only to ${output}.`,
-    'Schema: {"schema_version":"1.4","chapter":number,"reviewer_id":string,"verdict":"pass|revise","scores":{"clarity":0..10,"continuation":0..10,"fanqie_fit":0..10,"character_agency":0..10,"payoff":0..10},"scene_evidence":{"goal":{"status":"present|missing","evidence":string,"note":string},"obstacle":{"status":"present|missing","evidence":string,"note":string},"turn":{"status":"present|missing","evidence":string,"note":string},"payoff":{"status":"present|missing","evidence":string,"note":string},"hook":{"status":"present|missing","evidence":string,"note":string}},"feedback_rule_checks":[{"id":string,"verdict":"pass|fail|not_applicable","evidence":string,"note":string}],"style_signal_checks":[{"id":string,"verdict":"pass|fail|not_applicable","evidence":string,"note":string}],"character_contract_checks":[{"id":string,"verdict":"pass|fail|not_applicable","evidence":string,"note":string}],"editorial_dimension_checks":[{"id":string,"verdict":"pass|fail|not_applicable","evidence":string,"note":string}],"rhythm":{"pressure":"setup|rising|high|release","hook_type":"risk|reveal|choice|deadline|reversal|relationship|resource|mystery","payoff_type":"answer|win|loss|resource|relationship|information|survival|progress"},"issues":[{"code":string,"severity":"critical|warning","evidence":string,"repair":string}],"summary":string}.',
+    'Schema: {"schema_version":"1.5","chapter":number,"reviewer_id":string,"verdict":"pass|revise","scores":{"clarity":0..10,"continuation":0..10,"fanqie_fit":0..10,"character_agency":0..10,"payoff":0..10},"scene_evidence":{"goal":{"status":"present|missing","evidence":string,"note":string},"obstacle":{"status":"present|missing","evidence":string,"note":string},"turn":{"status":"present|missing","evidence":string,"note":string},"payoff":{"status":"present|missing","evidence":string,"note":string},"hook":{"status":"present|missing","evidence":string,"note":string}},"feedback_rule_checks":[{"id":string,"verdict":"pass|fail|not_applicable","evidence":string,"note":string}],"style_signal_checks":[{"id":string,"verdict":"pass|fail|not_applicable","evidence":string,"note":string}],"character_contract_checks":[{"id":string,"verdict":"pass|fail|not_applicable","evidence":string,"note":string}],"editorial_dimension_checks":[{"id":string,"verdict":"pass|fail|not_applicable","evidence":string,"note":string}],"hook_agenda_checks":[{"id":string,"verdict":"pass|fail","evidence":string,"note":string}],"rhythm":{"pressure":"setup|rising|high|release","hook_type":"risk|reveal|choice|deadline|reversal|relationship|resource|mystery","payoff_type":"answer|win|loss|resource|relationship|information|survival|progress"},"issues":[{"code":string,"severity":"critical|warning","evidence":string,"repair":string}],"summary":string}.',
     `Every issue evidence must be an unmodified contiguous literal quote from the manuscript body. Use verdict "revise" for a reader-blocking problem; score each dimension honestly. Scores under ${minScore}, a critical issue, or verdict revise trigger an in-transaction repair.`,
     'Calibrate strictly: 6 means a comprehensible but generic AI-like chapter; 7 means a normal publishable serial chapter; 8 requires specific, scene-grounded execution that creates a real desire to continue. Do not use 8 or above merely because the chapter has a title, dialogue, or an unexplained danger.',
     `Due reader-feedback rules: ${JSON.stringify(dueFeedbackRules.map((rule) => ({ id: rule.id, rule: rule.rule, feedback: rule.feedback, layer: rule.layer })))}`,
     `Due adopted style signals: ${JSON.stringify(dueStyleSignals.map((signal) => ({ id: signal.id, dimension: signal.dimension, signal: signal.signal, evidence: signal.evidence, scope: signal.scope })))}`,
     `Due character contracts: ${JSON.stringify(dueCharacterContracts.map((character) => ({ id: character.id, name: character.name, goal: character.goal, pressure: character.pressure, knowledge_boundary: character.knowledge_boundary, voice_and_action: character.voice_and_action, forbidden: character.forbidden })))}`,
     `Required editorial dimensions: ${JSON.stringify(chapterReaderReview.EDITORIAL_DIMENSIONS.map((dimension) => ({ id: dimension.id, label: dimension.label, allow_not_applicable: dimension.allow_na })))}`,
-    'For every due reader-feedback rule, adopted style signal, character contract, and required editorial dimension, return exactly one matching check item. A fail requires a literal prose quote and forces verdict revise; use not_applicable only when the chapter objectively has no opportunity to express that item. For the editorial dimensions, only dialogue_tension can be not_applicable, and only when the chapter has no dialogue. For character contracts, judge the named character from the prose: the character must pursue an own goal under current pressure, stay inside known information, and speak or act within the adopted voice-and-action boundary. Applicable character checks require a literal prose quote. For scene_evidence, prove from the actual prose that the protagonist pursues a goal, encounters an obstacle, makes or suffers a turn, gives the reader a visible mini-payoff (a result, answer, gain/loss, relationship/resource shift, or actionable new fact), and leaves a concrete next-reading hook. Mark any absent item missing with a concise note. Do not treat a deferred promise or an unexplained threat as a payoff. Do not mark hook present for a generic future teaser; the quoted ending must carry a new actor, object, result, decision, place, deadline, or risk established by this chapter. For rhythm, label the actual chapter pressure, its primary hook type, and its primary payoff type; these labels feed the next chapter variety ledger. Assess reader comprehension, desire to continue, Fanqie mobile-web-fiction feel, character agency, and whether this chapter delivers a concrete payoff. Do not praise the writer, invent quotes, or put commentary outside the JSON file.',
+    `Due must-advance hooks: ${JSON.stringify(mustAdvanceHooks.map((hook) => ({ id: hook.id, content: hook.content, last_advanced_chapter: hook.last_advanced_chapter, payoff_deadline_chapter: hook.payoff_deadline_chapter, age_since_advance: hook.age_since_advance })))}`,
+    'For every due reader-feedback rule, adopted style signal, character contract, required editorial dimension, and due must-advance hook, return exactly one matching check item. A fail requires a literal prose quote and forces verdict revise; use not_applicable only when the chapter objectively has no opportunity to express that item. For the editorial dimensions, only dialogue_tension can be not_applicable, and only when the chapter has no dialogue. For character contracts, judge the named character from the prose: the character must pursue an own goal under current pressure, stay inside known information, and speak or act within the adopted voice-and-action boundary. Applicable character checks require a literal prose quote. For every must-advance hook, return one hook_agenda_checks item: pass only when the actual prose visibly gives that exact promise a new escalation, evidence, consequence, or payoff; repeating its name or adding a vague teaser is a fail. Both pass and fail require a literal prose quote. A hook-agenda fail forces verdict revise. For scene_evidence, prove from the actual prose that the protagonist pursues a goal, encounters an obstacle, makes or suffers a turn, gives the reader a visible mini-payoff (a result, answer, gain/loss, relationship/resource shift, or actionable new fact), and leaves a concrete next-reading hook. Mark any absent item missing with a concise note. Do not treat a deferred promise or an unexplained threat as a payoff. Do not mark hook present for a generic future teaser; the quoted ending must carry a new actor, object, result, decision, place, deadline, or risk established by this chapter. For rhythm, label the actual chapter pressure, its primary hook type, and its primary payoff type; these labels feed the next chapter variety ledger. Assess reader comprehension, desire to continue, Fanqie mobile-web-fiction feel, character agency, and whether this chapter delivers a concrete payoff. Do not praise the writer, invent quotes, or put commentary outside the JSON file.',
   ].join('\n');
 }
 
@@ -372,7 +376,7 @@ function readerReviewSummary(review, round) {
   return {
     enabled: true, round, file: review.relative, run_id: review.agent.run_id, verdict: report.verdict, scores: report.scores,
     review_of: report.review_of, manuscript_sha256: report.manuscript_sha256,
-    low_scores: report.low_scores, critical_issue_count: report.critical_issue_count, scene_missing: report.scene_missing, feedback_rule_failures: report.feedback_rule_failures || [], style_signal_failures: report.style_signal_failures || [], character_contract_failures: report.character_contract_failures || [], editorial_dimension_failures: report.editorial_dimension_failures || [], rhythm: report.rhythm, should_revise: report.should_revise,
+    low_scores: report.low_scores, critical_issue_count: report.critical_issue_count, scene_missing: report.scene_missing, feedback_rule_failures: report.feedback_rule_failures || [], style_signal_failures: report.style_signal_failures || [], character_contract_failures: report.character_contract_failures || [], editorial_dimension_failures: report.editorial_dimension_failures || [], hook_agenda_failures: report.hook_agenda_failures || [], rhythm: report.rhythm, should_revise: report.should_revise,
   };
 }
 
@@ -434,6 +438,7 @@ function candidateState(inspection, review) {
     reader_low_scores: Number(report?.low_scores?.length || 0),
     reader_scene_missing: Number(report?.scene_missing?.length || 0),
     reader_editorial_failures: Number(report?.editorial_dimension_failures?.length || 0),
+    reader_hook_agenda_failures: Number(report?.hook_agenda_failures?.length || 0),
     reader_score: readerScore(review),
   };
 }
@@ -450,6 +455,8 @@ function chooseCandidate(previous, next) {
   if (next.reader_scene_missing > previous.reader_scene_missing) return { accepted: false, reason: 'scene_evidence_gap_regressed', previous, next };
   if (next.reader_editorial_failures < previous.reader_editorial_failures) return { accepted: true, reason: 'editorial_dimension_failure_reduced', previous, next };
   if (next.reader_editorial_failures > previous.reader_editorial_failures) return { accepted: false, reason: 'editorial_dimension_failure_regressed', previous, next };
+  if (next.reader_hook_agenda_failures < previous.reader_hook_agenda_failures) return { accepted: true, reason: 'hook_agenda_failure_reduced', previous, next };
+  if (next.reader_hook_agenda_failures > previous.reader_hook_agenda_failures) return { accepted: false, reason: 'hook_agenda_failure_regressed', previous, next };
   if (next.reader_low_scores < previous.reader_low_scores) return { accepted: true, reason: 'low_score_count_reduced', previous, next };
   if (next.reader_low_scores > previous.reader_low_scores) return { accepted: false, reason: 'low_score_count_regressed', previous, next };
   if (Number.isFinite(next.reader_score) && Number.isFinite(previous.reader_score) && next.reader_score >= previous.reader_score + 0.25) return { accepted: true, reason: 'reader_score_improved', previous, next };
@@ -478,6 +485,7 @@ function buildRevisionBrief(project, chapter, pass, inspection, review) {
   const issues = [...(report?.issues || [])].sort((left, right) => (left.severity === 'critical' ? -1 : 0) - (right.severity === 'critical' ? -1 : 0));
   const sceneProblems = (report?.scene_missing || []).map((key) => `- Missing ${key} evidence: make the ${key} legible in a scene and preserve its literal proof for the next review.`);
   const editorialProblems = (report?.editorial_dimension_checks || []).filter((check) => check.verdict === 'fail').map((check) => `- Editorial ${check.id}: ${check.note} Evidence: "${check.evidence}"`);
+  const hookAgendaProblems = (report?.hook_agenda_checks || []).filter((check) => check.verdict === 'fail').map((check) => `- Must-advance hook ${check.id}: ${check.note} Evidence: "${check.evidence}". Give this exact promise a concrete on-page escalation, evidence, consequence, or payoff.`);
   const readerProblems = issues.length
     ? issues.map((issue, index) => `${index + 1}. [${issue.severity}/${issue.code}] Evidence: “${issue.evidence}”\n   Repair: ${issue.repair}`).join('\n')
     : (report?.low_scores || []).map((key, index) => `${index + 1}. Raise ${key}; the cold reader scored it ${report.scores[key]}/10.`).join('\n') || 'No reader issue was supplied; repair the deterministic findings only.';
@@ -498,7 +506,7 @@ function buildRevisionBrief(project, chapter, pass, inspection, review) {
     '',
     '## Repair in priority order',
     '',
-    [readerProblems, ...sceneProblems, ...editorialProblems].filter(Boolean).join('\n'),
+    [readerProblems, ...sceneProblems, ...editorialProblems, ...hookAgendaProblems].filter(Boolean).join('\n'),
     '',
     '## Deterministic findings',
     '',
@@ -519,11 +527,11 @@ function revisionPrompt(project, chapter, manuscript, pass, inspection, readerRe
     `You are the ${task} node for Chinese web-novel chapter ${chapter}.`,
     `Project root: ${project}`,
     `Edit only this manuscript: ${relativePath(project, manuscript)}. Keep the same filename and one chapter title.`,
-    `Read the binding chapter card at state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, the context pack, current state, state/feedback-rules.json, state/style-contract.json, state/character-contracts.json, and the deterministic QA findings below.`,
+    `Read the binding chapter card at state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, the context pack, current state, state/feedback-rules.json, state/style-contract.json, state/character-contracts.json, state/hook-agenda.json, and the deterministic QA findings below.`,
     `QA findings: ${JSON.stringify(inspection.quality)}`,
     `Cold-reader findings: ${JSON.stringify(readerReview?.report || { enabled: false })}`,
     `Follow this binding repair brief: ${brief || 'no brief generated'}.`,
-    'Preserve canon, required beat, character knowledge boundaries, and the end hook. Replace abstract explanation with scene action, choice, consequence, or purposeful dialogue where the findings require it.',
+    'Preserve canon, required beat, character knowledge boundaries, and the end hook. Where state/hook-agenda.json marks a due hook, render literal on-page movement for that exact promise rather than restating it. Replace abstract explanation with scene action, choice, consequence, or purposeful dialogue where the findings require it.',
     'Keep Fanqie mobile formatting: plain prose only, short readable paragraphs, concrete action, and a changed ending situation. Update no settings, outline, or project-state files.',
     'Finish by saving the revised manuscript in place. Do not write planning notes into the manuscript.',
   ].join('\n');
@@ -560,11 +568,11 @@ function chapterPrompt(project, chapter, transactionResult) {
     `Project root: ${project}`,
     `Write exactly chapter ${chapter}. The transaction and context pack already exist: ${transactionResult.context}.`,
     `The binding chapter card is state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json.`,
-    'Read the local skill, author intent, current focus, reader contract, platform contract, chapter card, chapter beat, context pack, current state, unresolved hooks, feedback rules, style contract, character contracts, foreshadowing progress, and pacing ledger when present. Every active feedback rule, adopted style signal, and active character contract is a reader-experience constraint, not a note to summarize. Let each on-page contract character act from an own goal, pressure, information boundary, and voice/action profile. Never copy source-specific names, plots, or wording from the evidence behind a style signal.',
+    'Read the local skill, author intent, current focus, reader contract, platform contract, chapter card, chapter beat, context pack, current state, unresolved hooks, feedback rules, style contract, character contracts, foreshadowing progress, hook agenda, and pacing ledger when present. Every active feedback rule, adopted style signal, and active character contract is a reader-experience constraint, not a note to summarize. Let each on-page contract character act from an own goal, pressure, information boundary, and voice/action profile. Never copy source-specific names, plots, or wording from the evidence behind a style signal.',
     `Create one file matching manuscript/ch-${String(chapter).padStart(4, '0')}-<title>.md with complete publishable Chinese prose.`,
     'Format contract: keep one chapter title only, then plain prose separated by single blank lines; no outline headings, lists, tables, code fences, logs, or self-evaluation.',
     'Keep paragraphs mobile-first (normally under 260 Chinese characters) and split long sentences at action, reaction, dialogue, and result beats. Put purposeful dialogue in its own paragraph.',
-    'Move through a visible action or choice quickly; every scene must change a goal, obstacle, relationship, clue, or resource. Before the end, pay the reader with one visible result, answer, gain/loss, relationship/resource shift, or actionable new fact; a threat postponed to the next chapter is not enough. Respect pacing-ledger warnings by varying the primary hook or payoff shape while preserving the binding chapter beat. Do not chain paragraphs with “然后/接着/随后” as a timeline summary.',
+    'Move through a visible action or choice quickly; every scene must change a goal, obstacle, relationship, clue, or resource. Before the end, pay the reader with one visible result, answer, gain/loss, relationship/resource shift, or actionable new fact; a threat postponed to the next chapter is not enough. Respect pacing-ledger warnings by varying the primary hook or payoff shape while preserving the binding chapter beat. When state/hook-agenda.json names must_advance or stale_debt, visibly move one named hook by escalation, evidence, consequence, or payoff before opening sibling mysteries; a generic restatement does not count. Do not chain paragraphs with “然后/接着/随后” as a timeline summary.',
     'End on a concrete changed situation or unanswered hook. The final file must read like publishable Tomato/Fanqie web fiction, not a plan or a chronological log.',
     'Do not put planning notes, placeholders, model commentary, or markdown tables in the manuscript. Do not edit settings or outline files during the transaction.',
     'If continuity files need a factual update, update state/current-state.md, state/character-state.md, state/timeline.md, state/unresolved-hooks.md, and state/current-focus.md only. Leave project-state updated_through for the orchestrator.',
@@ -655,19 +663,21 @@ function runChapter(project, config, options, run) {
   if (readerReview.should_revise) throw new CliError('CHAPTER_READER_REVIEW_FAILED', `Chapter ${actualChapter} cold-reader review still requires revision`, { chapter: actualChapter, qa, reader_review: readerReviewSummary(readerReview, readerReviews.length), revision_passes: revisionPasses });
   const factRelative = `analysis/chapter-facts-ch${String(actualChapter).padStart(4, '0')}.json`;
   const factLedgerRelative = `${chapterFacts.FACT_LEDGER_DIR}/ch-${String(actualChapter).padStart(4, '0')}.json`;
-  const factBefore = [factRelative, factLedgerRelative, foreshadowingReconcile.OUTPUT].map((relative) => {
+  const factBefore = [factRelative, factLedgerRelative, foreshadowingReconcile.OUTPUT, hookAgenda.OUTPUT].map((relative) => {
     const file = path.join(project, relative);
     return { file, text: fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null };
   });
   let facts;
   let factSummary;
   let foreshadowingProgress;
+  let hookAgendaReport;
   try {
     facts = requestFactExtraction(project, actualChapter, manuscript, config, options);
     if (facts.agent) agentRuns.push(facts.agent);
     factSummary = factExtractionSummary(facts);
     foreshadowingProgress = reconcileForeshadowing(project, actualChapter, config);
     if (foreshadowingProgress.errors.length) throw new CliError('CHAPTER_FORESHADOWING_GATE_FAILED', `Chapter ${actualChapter} leaves planned foreshadowing unproven`, { chapter: actualChapter, errors: foreshadowingProgress.errors, warnings: foreshadowingProgress.warnings, progress: foreshadowingProgress.output });
+    hookAgendaReport = hookAgenda.write(project, { chapter: String(actualChapter) });
   } catch (error) {
     for (const item of factBefore) {
       if (item.text === null) { try { fs.unlinkSync(item.file); } catch (_) { /* best effort */ } }
@@ -675,7 +685,7 @@ function runChapter(project, config, options, run) {
     }
     throw error;
   }
-  qa = ensureQa(project, actualChapter, metrics, ai, deg, format, revisionPasses, readerReviews, factSummary, foreshadowingProgress);
+  qa = ensureQa(project, actualChapter, metrics, ai, deg, format, revisionPasses, readerReviews, factSummary, foreshadowingProgress, hookAgendaReport);
   const currentStateFile = path.join(project, 'state', 'current-state.md');
   const currentStateBefore = fs.existsSync(currentStateFile) ? fs.readFileSync(currentStateFile, 'utf8') : null;
   const pacingFile = path.join(project, pacingLedger.LEDGER_FILE);
@@ -697,14 +707,14 @@ function runChapter(project, config, options, run) {
     try { transaction.abort(project, { reason: `finish failed: ${JSON.stringify(finished.errors)}` }); } catch (_) { /* retain the failure record */ }
     throw new CliError('CHAPTER_POST_GATE_FAILED', `Chapter ${actualChapter} post-gate failed`, { errors: finished.errors, warnings: finished.warnings });
   }
-  const chapterArtifacts = [relativePath(project, manuscript), qa, finished.event.chapter_memory.path, ...readerReviews.filter((item) => item.enabled).map((item) => item.file), ...(factSummary.enabled ? [factSummary.file, factSummary.ledger] : []), ...(foreshadowingProgress.output ? [foreshadowingProgress.output] : []), ...(pacing.output ? [pacing.output] : []), ...revisionArtifacts];
+  const chapterArtifacts = [relativePath(project, manuscript), qa, finished.event.chapter_memory.path, ...readerReviews.filter((item) => item.enabled).map((item) => item.file), ...(factSummary.enabled ? [factSummary.file, factSummary.ledger] : []), ...(foreshadowingProgress.output ? [foreshadowingProgress.output] : []), ...(hookAgendaReport?.output ? [hookAgendaReport.output] : []), ...(pacing.output ? [pacing.output] : []), ...revisionArtifacts];
   workflow.postHoc(project, { chapter: actualChapter, summary: `Chapter ${actualChapter} committed with ${countText(text).chinese_chars} Chinese characters.`, artifacts: chapterArtifacts.join(',') });
   if (actualChapter === 1) finishWorkflowFirstChapter(project, actualChapter, manuscript, config, options);
   const readerReviewResult = readerReviewSummary(readerReview, readerReviews.length);
-  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress.audit || null, pacing: pacing.audit || null, quality }, word_count: words };
+  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress.audit || null, hook_agenda: hookAgendaReport?.audit || null, pacing: pacing.audit || null, quality }, word_count: words };
   updateRun(project, nextState);
-  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress.audit || null, pacing: pacing.audit || null, word_count: words, quality });
-  return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress, pacing };
+  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress.audit || null, hook_agenda: hookAgendaReport?.audit || null, pacing: pacing.audit || null, word_count: words, quality });
+  return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress, hook_agenda: hookAgendaReport, pacing };
 }
 
 function quoteFromChapter(project, chapter) {

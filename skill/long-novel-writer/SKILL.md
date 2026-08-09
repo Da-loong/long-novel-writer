@@ -380,7 +380,7 @@ release beats without forcing a formula onto the novel. Read
 
 ## Focused editorial dimensions
 
-The unattended cold-reader report uses schema `1.4` and includes eight
+The unattended cold-reader report uses schema `1.5` and includes eight
 literal-evidence editorial dimensions: character consistency, information
 boundary, causal chain, outline delivery, dialogue tension,
 action-over-summary, canon continuity, and next-read boundary. A failed
@@ -388,3 +388,9 @@ editorial dimension forces bounded revision; a repair candidate must reduce
 these failures before a score-only improvement is accepted. Read
 `references/operations/editorial-dimension-loop.md` before changing the
 reader schema, revision selection, or chapter quality policy.
+
+## Hook-debt agenda
+
+`hook-agenda.js` turns observed foreshadowing progress into a compact next-chapter obligation. It prioritizes stale promises, near payoff deadlines, and recently advanced hooks that are ready for resolution; it freezes no more than two `must_advance` IDs with the chapter transaction. The agenda joins critical context, and cold-reader schema 1.5 requires literal prose proof that each due ID received a concrete escalation, clue, consequence, or payoff.
+
+`references/operations/hook-agenda-loop.md`

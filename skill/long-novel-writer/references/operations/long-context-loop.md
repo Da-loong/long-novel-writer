@@ -32,3 +32,9 @@ node scripts/foreshadowing-index.js <PROJECT> --chapter 12 --write
 ```
 
 `chapter-transaction begin` refreshes the index and places it in the context pack. Fix any reported index error before drafting. The ledger remains the editable source of truth.
+
+## Hook-debt agenda
+
+`hook-agenda.js` turns observed foreshadowing progress into a compact next-chapter obligation. It prioritizes stale promises, near payoff deadlines, and recently advanced hooks that are ready for resolution; it freezes no more than two `must_advance` IDs with the chapter transaction. The agenda joins critical context, and cold-reader schema 1.5 requires literal prose proof that each due ID received a concrete escalation, clue, consequence, or payoff.
+
+`references/operations/hook-agenda-loop.md`
