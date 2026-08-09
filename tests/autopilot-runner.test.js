@@ -64,6 +64,14 @@ function fakeAgent(request) {
       rhythm: { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' },
       issues: [], summary: 'The chapter has a clear pressure change and a next-reading question.',
     }, null, 2));
+  } else if (request.task === 'mvp-fact-extract') {
+    const chapter = Number(JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'chapter-transaction.json'), 'utf8')).chapter);
+    const output = request.prompt.match(/analysis\/chapter-facts-ch\d{4}\.json/)?.[0];
+    assert.ok(output, request.prompt);
+    write(output, JSON.stringify({
+      schema_version: '1.0', chapter, extractor_id: 'fixture-fact-extractor', summary: 'Lin makes a public choice and gains a route through the crowd.',
+      facts: [{ kind: 'event', subject: 'Lin', claim: 'Publicly commits to the debt choice.', evidence: `林越把第${chapter}张欠条拍在柜台上。` }],
+    }, null, 2));
   } else if (request.task === 'polish') {
     write('analysis/qa-report.md', '# QA\n\n- chapter gate passed\n');
     write('analysis/reader-metrics.json', JSON.stringify({ schema_version: '1.0', status: 'passed' }));
@@ -85,6 +93,9 @@ test('autopilot runner executes preparation and one durable chapter slice', () =
   const pacing = JSON.parse(fs.readFileSync(path.join(project, 'state', 'pacing-ledger.json'), 'utf8'));
   assert.equal(pacing.entries.length, 1);
   assert.deepEqual(pacing.entries[0].rhythm, { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' });
+  const facts = JSON.parse(fs.readFileSync(path.join(project, 'state', 'fact-ledger', 'ch-0001.json'), 'utf8'));
+  assert.equal(facts.facts.length, 1);
+  assert.equal(facts.facts[0].kind, 'event');
   const run = JSON.parse(fs.readFileSync(path.join(project, 'state', 'autopilot-run.json'), 'utf8'));
   assert.deepEqual(run.completed_prepare_nodes, ['build', 'character', 'story-plan', 'outline']);
   assert.ok(fs.existsSync(path.join(project, 'state', 'agent-runs')));

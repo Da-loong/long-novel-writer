@@ -308,6 +308,15 @@ obstacle, turn, visible mini-payoff, and next-reading hook. A missing leg is
 revision debt and makes the chapter ineligible for a `pass` verdict, preventing
 an outline promise or a deferred threat from being counted as prose delivery.
 
+## Evidence-bound chapter facts
+
+After the accepted cold-reader round, the extractor records only durable facts
+that have literal manuscript evidence. `state/fact-ledger/ch-XXXX.json` is
+rebuilt from `analysis/chapter-facts-chXXXX.json` with source hashes, then
+enters the next context pack. Read
+`references/operations/chapter-fact-ledger.md`; validate through
+`scripts/chapter-facts.js` using `validate <PROJECT> --chapter <N>`.
+
 Every repair starts from a snapshot, receives a deterministic repair brief, and
 is kept only when its deterministic debt or cold-reader evidence measurably
 improves. A plateau restores the prior manuscript and leaves the chapter open

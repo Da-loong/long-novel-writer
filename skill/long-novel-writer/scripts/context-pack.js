@@ -103,6 +103,16 @@ function memoryRepresentation(project, manuscriptRelative) {
   } catch (_) { return null; }
 }
 
+function recentFactLedgers(project, chapter, limit) {
+  const directory = path.join(project, 'state', 'fact-ledger');
+  if (!fs.existsSync(directory)) return [];
+  return fs.readdirSync(directory)
+    .filter((name) => /^ch-\d{4}\.json$/i.test(name) && Number.parseInt(name.slice(3, 7), 10) < chapter)
+    .sort((left, right) => Number.parseInt(right.slice(3, 7), 10) - Number.parseInt(left.slice(3, 7), 10))
+    .slice(0, limit)
+    .map((name) => candidate('hot-state', `state/fact-ledger/${name}`, { representation: 'chapter-facts' }));
+}
+
 function candidate(tier, name, extras = {}) {
   return { tier, name, score: null, ...extras };
 }
@@ -129,7 +139,7 @@ function build(projectInput, options = {}) {
     ...(chapterBeat ? [candidate('critical', chapterBeat.name, chapterBeat)] : []),
     ...byPresence('critical', ['state/current-state.md', 'state/current-focus.md', 'state/unresolved-hooks.md', 'state/foreshadowing-index.json', 'state/pacing-ledger.json', chapterCard]),
   ];
-  const hotState = byPresence('hot-state', ['state/character-state.md', 'state/timeline.md', 'state/workflow-run.json']);
+  const hotState = [...byPresence('hot-state', ['state/character-state.md', 'state/timeline.md', 'state/workflow-run.json']), ...recentFactLedgers(project, targetChapter, recentCount)];
   const warm = byPresence('warm-core', [
     'settings/platform-classroom-map.md', 'settings/workflow-policy.json', 'settings/style-guide.md', 'settings/story-bible.md', 'settings/characters.md', 'settings/relations.md',
     'outline/master-outline.md', 'outline/foreshadowing-ledger.md', 'evidence/sources/source-index.md', 'evidence/sources/writer-classroom-index.md', 'evidence/derivations/decision-log.md',
@@ -200,4 +210,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'context-pack'); }
 }
 
-module.exports = { DEFAULT_POLICY, TIER_CAPS, argsOf, chapterNumber, termsOf, relevance, excerpt, readPolicy, targetBeat, memoryRepresentation, build, run };
+module.exports = { DEFAULT_POLICY, TIER_CAPS, argsOf, chapterNumber, termsOf, relevance, excerpt, readPolicy, targetBeat, memoryRepresentation, recentFactLedgers, build, run };

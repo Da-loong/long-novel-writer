@@ -21,6 +21,7 @@ const degeneration = require('./check-degeneration');
 const formatGate = require('./format-gate');
 const handoff = require('./handoff');
 const chapterReaderReview = require('./chapter-reader-review');
+const chapterFacts = require('./chapter-facts');
 const pacingLedger = require('./pacing-ledger');
 
 const RUN_FILE = 'state/autopilot-run.json';
@@ -42,6 +43,7 @@ const DEFAULTS = {
   chapter_revision_passes: 2,
   chapter_reader_review: true,
   chapter_reader_min_score: 7,
+  chapter_fact_extract: true,
 };
 
 function argsOf(argv) {
@@ -115,6 +117,7 @@ function configOf(project, options = {}) {
     chapter_revision_passes: Math.max(0, Math.floor(number('chapter-revision-passes', number('chapter_revision_passes', DEFAULTS.chapter_revision_passes)))),
     chapter_reader_review: boolean('chapter-reader-review', boolean('chapter_reader_review', DEFAULTS.chapter_reader_review)),
     chapter_reader_min_score: Math.min(10, Math.max(0, number('chapter-reader-min-score', number('chapter_reader_min_score', DEFAULTS.chapter_reader_min_score)))),
+    chapter_fact_extract: boolean('chapter-fact-extract', boolean('chapter_fact_extract', DEFAULTS.chapter_fact_extract)),
   };
 }
 
@@ -302,9 +305,9 @@ function quarantineChapter(project, chapter, attempt) {
   });
 }
 
-function ensureQa(project, chapter, metrics, ai, deg, format, revisionPasses = [], readerReviews = []) {
+function ensureQa(project, chapter, metrics, ai, deg, format, revisionPasses = [], readerReviews = [], chapterFactReport = null) {
   const relative = `analysis/autopilot-qa-ch${String(chapter).padStart(4, '0')}.json`;
-  const payload = { schema_version: '1.2', chapter, metrics, ai_patterns: ai, degeneration: deg, format, revision_passes: revisionPasses, reader_reviews: readerReviews, created_at: new Date().toISOString() };
+  const payload = { schema_version: '1.3', chapter, metrics, ai_patterns: ai, degeneration: deg, format, revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: chapterFactReport, created_at: new Date().toISOString() };
   writeJson(path.join(project, relative), payload);
   if (!fs.existsSync(path.join(project, 'analysis', 'qa-report.md'))) atomicWrite(path.join(project, 'analysis', 'qa-report.md'), `# QA chapter ${chapter}\n\n- deterministic report: ${relative}\n`);
   return relative;
@@ -356,6 +359,33 @@ function readerReviewSummary(review, round) {
     enabled: true, round, file: review.relative, run_id: review.agent.run_id, verdict: report.verdict, scores: report.scores,
     review_of: report.review_of, manuscript_sha256: report.manuscript_sha256,
     low_scores: report.low_scores, critical_issue_count: report.critical_issue_count, scene_missing: report.scene_missing, rhythm: report.rhythm, should_revise: report.should_revise,
+  };
+}
+
+function factExtractionPrompt(project, chapter, manuscript, output) {
+  return [
+    `You are the post-chapter fact extractor for Chinese web-novel chapter ${chapter}. Do not edit the manuscript, canon, outline, or state files.`,
+    `Project root: ${project}`,
+    `Read ${relativePath(project, manuscript)}, its binding chapter card, current state, unresolved hooks, and context pack.`,
+    `Write strict JSON only to ${output}.`,
+    'Schema: {"schema_version":"1.0","chapter":number,"extractor_id":string,"summary":string,"facts":[{"kind":"event|character_state|location|resource|knowledge|relationship|timeline|hook_open|hook_closed","subject":string,"claim":string,"evidence":string}]}.',
+    'Extract only durable new facts established by this chapter. Every evidence value must be an unmodified contiguous literal quote from the manuscript body. Keep claims short, factual, and bounded; omit interpretation, predictions, and planned events. Include at least one fact and no more than 24.',
+  ].join('\n');
+}
+
+function requestFactExtraction(project, chapter, manuscript, config, options) {
+  if (!config.chapter_fact_extract) return { enabled: false, agent: null, report: null, relative: null, ledger: null };
+  const relative = `analysis/chapter-facts-ch${String(chapter).padStart(4, '0')}.json`;
+  const agent = invokeAgent(project, 'mvp-fact-extract', factExtractionPrompt(project, chapter, manuscript, relative), config, options);
+  const validated = chapterFacts.validate(project, { chapter: String(chapter), file: relative });
+  return { enabled: true, agent, relative, ledger: validated.ledger, report: validated.data };
+}
+
+function factExtractionSummary(extraction) {
+  if (!extraction?.enabled || !extraction.report) return { enabled: false };
+  return {
+    enabled: true, file: extraction.relative, ledger: extraction.ledger, run_id: extraction.agent.run_id,
+    manuscript_sha256: extraction.report.manuscript_sha256, fact_count: extraction.report.facts.length,
   };
 }
 
@@ -595,9 +625,19 @@ function runChapter(project, config, options, run) {
   const { text, metrics, ai, deg, format, quality } = inspection;
   const wordsBefore = Number(before.word_count || 0);
   const words = wordsBefore + countText(text).chinese_chars;
-  const qa = ensureQa(project, actualChapter, metrics, ai, deg, format, revisionPasses, readerReviews);
+  let qa = ensureQa(project, actualChapter, metrics, ai, deg, format, revisionPasses, readerReviews);
   if (!quality.ok) throw new CliError('CHAPTER_QUALITY_GATE_FAILED', `Chapter ${actualChapter} quality gate failed`, { chapter: actualChapter, quality, qa, revision_passes: revisionPasses });
   if (readerReview.should_revise) throw new CliError('CHAPTER_READER_REVIEW_FAILED', `Chapter ${actualChapter} cold-reader review still requires revision`, { chapter: actualChapter, qa, reader_review: readerReviewSummary(readerReview, readerReviews.length), revision_passes: revisionPasses });
+  const factRelative = `analysis/chapter-facts-ch${String(actualChapter).padStart(4, '0')}.json`;
+  const factLedgerRelative = `${chapterFacts.FACT_LEDGER_DIR}/ch-${String(actualChapter).padStart(4, '0')}.json`;
+  const factBefore = [factRelative, factLedgerRelative].map((relative) => {
+    const file = path.join(project, relative);
+    return { file, text: fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null };
+  });
+  const facts = requestFactExtraction(project, actualChapter, manuscript, config, options);
+  if (facts.agent) agentRuns.push(facts.agent);
+  const factSummary = factExtractionSummary(facts);
+  qa = ensureQa(project, actualChapter, metrics, ai, deg, format, revisionPasses, readerReviews, factSummary);
   const currentStateFile = path.join(project, 'state', 'current-state.md');
   const currentStateBefore = fs.existsSync(currentStateFile) ? fs.readFileSync(currentStateFile, 'utf8') : null;
   const pacingFile = path.join(project, pacingLedger.LEDGER_FILE);
@@ -612,17 +652,21 @@ function runChapter(project, config, options, run) {
     else atomicWrite(currentStateFile, currentStateBefore);
     if (pacingBefore === null) { try { fs.unlinkSync(pacingFile); } catch (_) { /* best effort */ } }
     else atomicWrite(pacingFile, pacingBefore);
+    for (const item of factBefore) {
+      if (item.text === null) { try { fs.unlinkSync(item.file); } catch (_) { /* best effort */ } }
+      else atomicWrite(item.file, item.text);
+    }
     try { transaction.abort(project, { reason: `finish failed: ${JSON.stringify(finished.errors)}` }); } catch (_) { /* retain the failure record */ }
     throw new CliError('CHAPTER_POST_GATE_FAILED', `Chapter ${actualChapter} post-gate failed`, { errors: finished.errors, warnings: finished.warnings });
   }
-  const chapterArtifacts = [relativePath(project, manuscript), qa, finished.event.chapter_memory.path, ...readerReviews.filter((item) => item.enabled).map((item) => item.file), ...(pacing.output ? [pacing.output] : []), ...revisionArtifacts];
+  const chapterArtifacts = [relativePath(project, manuscript), qa, finished.event.chapter_memory.path, ...readerReviews.filter((item) => item.enabled).map((item) => item.file), ...(factSummary.enabled ? [factSummary.file, factSummary.ledger] : []), ...(pacing.output ? [pacing.output] : []), ...revisionArtifacts];
   workflow.postHoc(project, { chapter: actualChapter, summary: `Chapter ${actualChapter} committed with ${countText(text).chinese_chars} Chinese characters.`, artifacts: chapterArtifacts.join(',') });
   if (actualChapter === 1) finishWorkflowFirstChapter(project, actualChapter, manuscript, config, options);
   const readerReviewResult = readerReviewSummary(readerReview, readerReviews.length);
-  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, pacing: pacing.audit || null, quality }, word_count: words };
+  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, pacing: pacing.audit || null, quality }, word_count: words };
   updateRun(project, nextState);
-  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, pacing: pacing.audit || null, word_count: words, quality });
-  return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses, reader_reviews: readerReviews, pacing };
+  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, pacing: pacing.audit || null, word_count: words, quality });
+  return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: factSummary, pacing };
 }
 
 function quoteFromChapter(project, chapter) {

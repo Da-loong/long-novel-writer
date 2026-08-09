@@ -10,7 +10,7 @@
 
 - 版本：`0.3.0-rc.1`
 - 初始基线：`7.5/10`
-- 当前仓库评测：`8.68/10`（99 项自动测试通过，并包含一次三读者前三章盲读前向运行）
+- 当前仓库评测：`8.68/10`（102 项自动测试通过，并包含一次三读者前三章盲读前向运行）
 - 发布门槛：任务级加权评测 `>= 8.5/10`，且无 P0、P1 未关闭问题
 - 支持环境：Windows、Linux；Node.js 20+
 - GitHub：公开仓库已建立；以 `main` 分支 CI 和发布门禁作为合并基线
@@ -172,6 +172,20 @@ must remain intact and the exact evidence to repair. The runner keeps a rewrite
 only when it reduces deterministic or cold-reader debt, or raises the
 reader-score by at least 0.25. A plateau restores the stronger prior draft and
 starts a fresh bounded production attempt.
+
+## Evidence-bound chapter facts
+
+After an accepted chapter passes cold-read and transaction gates, a separate
+extractor writes literal-evidence facts to `analysis/chapter-facts-chXXXX.json`.
+The validator archives its normalized, hash-bound copy under
+`state/fact-ledger/ch-XXXX.json`; recent entries feed the next chapter's context
+pack. The ledger covers events, character/location/resource state, knowledge,
+relationships, timeline, and opened/closed hooks while keeping planned outline
+material outside the fact layer.
+
+```powershell
+node "$skill\scripts\chapter-facts.js" validate .\BOOK --chapter 12 --file .\BOOK\analysis\chapter-facts-ch0012.json
+```
 
 ## Cross-chapter pacing health
 
