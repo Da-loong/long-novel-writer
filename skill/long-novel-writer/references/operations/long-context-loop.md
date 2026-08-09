@@ -8,7 +8,7 @@
 
 `context-pack.js` rebuilds `state/context-pack.md` before each transaction. It uses this priority order:
 
-1. critical compass, reader/platform contracts, target beat, current state, unresolved hooks, and derived foreshadowing index;
+1. critical compass, reader/platform contracts, target beat, current state, unresolved hooks, derived foreshadowing index, and the target resource window;
 2. the recent manuscript window;
 3. current character/timeline state and warm canon;
 4. older relevant chapter capsules.
@@ -38,3 +38,14 @@ node scripts/foreshadowing-index.js <PROJECT> --chapter 12 --write
 `hook-agenda.js` turns observed foreshadowing progress into a compact next-chapter obligation. It prioritizes stale promises, near payoff deadlines, and recently advanced hooks that are ready for resolution; it freezes no more than two `must_advance` IDs with the chapter transaction. The agenda joins critical context, and cold-reader schema 1.5 requires literal prose proof that each due ID received a concrete escalation, clue, consequence, or payoff.
 
 `references/operations/hook-agenda-loop.md`
+
+## Resource continuity window
+
+Accepted chapter facts can carry a typed, literal-evidence resource delta. Before
+each chapter, resource-ledger.js rebuilds the durable ledger and a bounded
+state/resource-window.json for the target chapter. Drafting, cold reading,
+and revision use this same window to preserve holder, availability, consumption,
+concealment, loss, damage, and access facts. Stale or expected-use-due resources
+become warnings, never invented plot events. Read
+references/operations/resource-ledger-loop.md and update with
+scripts/resource-ledger.js update <PROJECT> --chapter <N>.

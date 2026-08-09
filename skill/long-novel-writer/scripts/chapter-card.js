@@ -71,6 +71,18 @@ function dueForeshadowing(project, chapter) {
   }
 }
 
+function resourceWindowOf(project, chapter) {
+  const source = 'state/resource-window.json';
+  const text = readText(project, source);
+  if (!text) return { source, target_chapter: null, resources: [], warnings: [] };
+  try {
+    const data = JSON.parse(text);
+    return { source, target_chapter: Number(data.target_chapter || 0) || null, resources: Array.isArray(data.resources) ? data.resources : [], warnings: Array.isArray(data.warnings) ? data.warnings : [] };
+  } catch (error) {
+    throw new CliError('CHAPTER_CARD_RESOURCE_WINDOW_INVALID', 'Resource window JSON is invalid', { source, message: error.message });
+  }
+}
+
 function sourceHashes(project, paths) {
   return paths.filter((relative) => fs.existsSync(path.join(project, relative))).map((relative) => ({ path: relative, sha256: sha256(readText(project, relative)) }));
 }
@@ -100,9 +112,10 @@ function build(projectInput, options = {}) {
   const knowledge = knowledgeOf(project, beat?.pov || '');
   if (beat?.pov && !knowledge.matched) warnings.push({ code: 'CHAPTER_CARD_POV_STATE_UNMAPPED', chapter, pov: beat.pov, source: knowledge.source });
   const foreshadowing = dueForeshadowing(project, chapter);
+  const resourceWindow = resourceWindowOf(project, chapter);
   const sources = [
     'settings/author-intent.md', 'state/current-focus.md', 'settings/reader-contract.md', 'settings/platform-contract.md',
-    'outline/chapter-beats.md', 'state/current-state.md', 'state/character-state.md', 'state/character-contracts.json', 'state/style-contract.json', 'state/unresolved-hooks.md', foreshadowing.source,
+    'outline/chapter-beats.md', 'state/current-state.md', 'state/character-state.md', 'state/character-contracts.json', 'state/style-contract.json', 'state/unresolved-hooks.md', foreshadowing.source, resourceWindow.source,
   ];
   const card = {
     schema_version: '1.0', generated_at: new Date().toISOString(), chapter, status: errors.length ? 'blocked' : 'ready',
@@ -118,6 +131,7 @@ function build(projectInput, options = {}) {
     ] : [],
     reader_experience_contract: readerExperienceOf(beat),
     foreshadowing_due: foreshadowing.due,
+    resource_window: resourceWindow,
     drafting_protocol: {
       draft_a: 'Deliver the beat through visible scene action and preserve the knowledge boundary.',
       draft_b: 'Repair causal, character, pacing, and information-boundary findings before final delivery.',
@@ -172,4 +186,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-card'); }
 }
 
-module.exports = { CARD_DIR, REQUIRED_BEAT_FIELDS, REQUIRED_READER_EXPERIENCE_FIELDS, argsOf, cellsOf, tableRows, beatOf, knowledgeOf, dueForeshadowing, sourceHashes, cardFile, readerExperienceOf, build, write, validate, run };
+module.exports = { CARD_DIR, REQUIRED_BEAT_FIELDS, REQUIRED_READER_EXPERIENCE_FIELDS, argsOf, cellsOf, tableRows, beatOf, knowledgeOf, dueForeshadowing, resourceWindowOf, sourceHashes, cardFile, readerExperienceOf, build, write, validate, run };

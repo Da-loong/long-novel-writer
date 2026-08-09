@@ -8,6 +8,10 @@ const path = require('path');
 const { CliError, emitError, atomicWrite } = require('./cap-utils');
 
 const FACT_KINDS = new Set(['event', 'character_state', 'location', 'resource', 'knowledge', 'relationship', 'timeline', 'hook_open', 'hook_closed']);
+const RESOURCE_TYPES = new Set(['physical_item', 'consumable', 'currency', 'ability', 'credential', 'relationship_token', 'information', 'other']);
+const RESOURCE_ACTIONS = new Set(['introduced', 'acquired', 'consumed', 'revealed', 'hidden', 'lost', 'damaged', 'restored', 'transferred']);
+const RESOURCE_STATUSES = new Set(['available', 'consumed', 'hidden', 'lost', 'damaged']);
+const RESOURCE_RISKS = new Set(['normal', 'high']);
 const FACT_LEDGER_DIR = 'state/fact-ledger';
 
 function argsOf(argv) {
@@ -57,9 +61,23 @@ function reportPath(project, chapter, file) {
 
 function ledgerPath(project, chapter) { return path.join(project, FACT_LEDGER_DIR, `ch-${chapterId(chapter)}.json`); }
 
+function validateResourceDelta(value, chapter, index) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Resource fact requires a structured resource delta', { chapter, index });
+  const holder = String(value.holder || '').trim();
+  const key = String(value.key || '').trim();
+  const type = String(value.type || '').trim();
+  const action = String(value.action || '').trim();
+  const statusAfter = String(value.status_after || '').trim();
+  const risk = String(value.risk || 'normal').trim() || 'normal';
+  const expectedUse = value.expected_use_by_chapter === undefined || value.expected_use_by_chapter === null || value.expected_use_by_chapter === '' ? null : Number(value.expected_use_by_chapter);
+  if (!holder || !key || !RESOURCE_TYPES.has(type) || !RESOURCE_ACTIONS.has(action) || !RESOURCE_STATUSES.has(statusAfter) || !RESOURCE_RISKS.has(risk)) invalid('Resource delta has invalid holder, key, type, action, status, or risk', { chapter, index, holder, key, type, action, status_after: statusAfter, risk });
+  if (holder.length > 160 || key.length > 160 || (expectedUse !== null && (!Number.isInteger(expectedUse) || expectedUse < Number(chapter)))) invalid('Resource delta exceeds bounds or has an invalid expected use chapter', { chapter, index, holder, key, expected_use_by_chapter: value.expected_use_by_chapter });
+  return { holder, key, type, action, status_after: statusAfter, risk, expected_use_by_chapter: expectedUse };
+}
+
 function validateData(data, manuscript, chapter) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) invalid('Chapter facts must be a JSON object', { chapter });
-  if (String(data.schema_version || '') !== '1.0') invalid('Chapter facts schema_version must be 1.0', { chapter, schema_version: data.schema_version });
+  if (!['1.0', '1.1'].includes(String(data.schema_version || ''))) invalid('Chapter facts schema_version must be 1.0 or 1.1', { chapter, schema_version: data.schema_version });
   if (Number(data.chapter) !== Number(chapter)) invalid('Chapter facts chapter does not match manuscript', { expected: Number(chapter), actual: data.chapter });
   if (!String(data.extractor_id || '').trim()) invalid('Chapter facts extractor_id is required', { chapter });
   const summary = String(data.summary || '').trim();
@@ -78,10 +96,12 @@ function validateData(data, manuscript, chapter) {
     const key = `${kind}\u0000${subject}\u0000${claim}`;
     if (seen.has(key)) invalid('Chapter facts contain a duplicate claim', { chapter, index, kind, subject, claim });
     seen.add(key);
-    return { kind, subject, claim, evidence };
+    const resource = kind === 'resource' ? validateResourceDelta(fact.resource, chapter, index) : null;
+    if (kind !== 'resource' && fact.resource !== undefined) invalid('Only resource facts may include a resource delta', { chapter, index, kind });
+    return { kind, subject, claim, evidence, ...(resource ? { resource } : {}) };
   });
   return {
-    schema_version: '1.0', chapter: Number(chapter), extractor_id: String(data.extractor_id).trim(), summary, facts,
+    schema_version: '1.1', chapter: Number(chapter), extractor_id: String(data.extractor_id).trim(), summary, facts,
     manuscript: manuscript.relative, manuscript_sha256: sha256(manuscript.text), extracted_at: new Date().toISOString(),
   };
 }
@@ -116,4 +136,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-facts'); }
 }
 
-module.exports = { FACT_KINDS, FACT_LEDGER_DIR, argsOf, chapterId, sha256, projectOf, manuscriptOf, reportPath, ledgerPath, validateData, validate, run };
+module.exports = { FACT_KINDS, RESOURCE_TYPES, RESOURCE_ACTIONS, RESOURCE_STATUSES, RESOURCE_RISKS, FACT_LEDGER_DIR, argsOf, chapterId, sha256, projectOf, manuscriptOf, reportPath, ledgerPath, validateResourceDelta, validateData, validate, run };

@@ -39,6 +39,8 @@ const TRACKED = [
   'state/foreshadowing-index.json',
   'state/foreshadowing-progress.json',
   'state/hook-agenda.json',
+  'state/resource-ledger.json',
+  'state/resource-window.json',
   'state/pacing-ledger.json',
 ];
 

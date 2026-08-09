@@ -394,3 +394,14 @@ reader schema, revision selection, or chapter quality policy.
 `hook-agenda.js` turns observed foreshadowing progress into a compact next-chapter obligation. It prioritizes stale promises, near payoff deadlines, and recently advanced hooks that are ready for resolution; it freezes no more than two `must_advance` IDs with the chapter transaction. The agenda joins critical context, and cold-reader schema 1.5 requires literal prose proof that each due ID received a concrete escalation, clue, consequence, or payoff.
 
 `references/operations/hook-agenda-loop.md`
+
+## Resource continuity window
+
+Accepted chapter facts can carry a typed, literal-evidence resource delta. Before
+each chapter, resource-ledger.js rebuilds the durable ledger and a bounded
+state/resource-window.json for the target chapter. Drafting, cold reading,
+and revision use this same window to preserve holder, availability, consumption,
+concealment, loss, damage, and access facts. Stale or expected-use-due resources
+become warnings, never invented plot events. Read
+references/operations/resource-ledger-loop.md and update with
+scripts/resource-ledger.js update <PROJECT> --chapter <N>.

@@ -12,6 +12,7 @@ const { compile: compileStyleContract, OUTPUT: STYLE_CONTRACT_FILE } = require('
 const { compile: compileCharacterContracts, OUTPUT: CHARACTER_CONTRACTS_FILE } = require('./character-contract');
 const { write: writeChapterCard } = require('./chapter-card');
 const { write: writeHookAgenda, OUTPUT: HOOK_AGENDA_FILE } = require('./hook-agenda');
+const { write: writeResourceLedger, OUTPUT: RESOURCE_LEDGER_FILE, WINDOW_OUTPUT: RESOURCE_WINDOW_FILE } = require('./resource-ledger');
 const { capture: captureChapterMemory } = require('./chapter-memory');
 const { gate } = require('./chapter-gate');
 
@@ -139,6 +140,7 @@ function begin(projectInput, options = {}) {
     warnings: foreshadowing.warnings, foreshadowing_index: path.join(project, 'state', 'foreshadowing-index.json'),
   };
   const hookAgenda = writeHookAgenda(project, { chapter: String(chapter) });
+  const resourceLedger = writeResourceLedger(project, { chapter: String(chapter) });
   const chapterCard = writeChapterCard(project, { chapter: String(chapter) });
   if (chapterCard.errors.length) return {
     ok: false, command: 'begin', project, chapter, transaction_written: false,
@@ -160,11 +162,12 @@ function begin(projectInput, options = {}) {
     character_contracts: { path: CHARACTER_CONTRACTS_FILE, sha256: digestFile(path.join(project, CHARACTER_CONTRACTS_FILE)), character_count: characterContracts.character_count, warnings: characterContracts.warnings },
     foreshadowing_index: { path: 'state/foreshadowing-index.json', sha256: digestFile(path.join(project, 'state', 'foreshadowing-index.json')), due: foreshadowing.due },
     hook_agenda: { path: HOOK_AGENDA_FILE, sha256: digestFile(path.join(project, HOOK_AGENDA_FILE)), must_advance: hookAgenda.data.must_advance.map((entry) => entry.id), stale_debt: hookAgenda.data.stale_debt.map((entry) => entry.id), warnings: hookAgenda.warnings },
+    resource_ledger: { path: RESOURCE_LEDGER_FILE, sha256: digestFile(path.join(project, RESOURCE_LEDGER_FILE)), window_path: RESOURCE_WINDOW_FILE, window_sha256: digestFile(path.join(project, RESOURCE_WINDOW_FILE)), active_resources: resourceLedger.audit.active_resources, stale_resources: resourceLedger.audit.stale_resources, warnings: resourceLedger.warnings },
     chapter_card: { path: chapterCard.relative_output, sha256: digestFile(chapterCard.output), warnings: chapterCard.warnings },
     canon: canonManifest(project), last_result: { pre_gate_ok: true },
   };
   atomicWrite(transactionPath, `${JSON.stringify(transaction, null, 2)}\n`);
-  return { ok: true, command: 'begin', project, chapter, transaction: transactionPath, context: contextPath, foreshadowing_index: path.join(project, 'state', 'foreshadowing-index.json'), hook_agenda: path.join(project, HOOK_AGENDA_FILE), chapter_card: chapterCard.output, due_foreshadowing: foreshadowing.due, must_advance_hooks: hookAgenda.data.must_advance.map((entry) => entry.id), range, source_count: context.manifest.sources.length };
+  return { ok: true, command: 'begin', project, chapter, transaction: transactionPath, context: contextPath, foreshadowing_index: path.join(project, 'state', 'foreshadowing-index.json'), hook_agenda: path.join(project, HOOK_AGENDA_FILE), resource_ledger: path.join(project, RESOURCE_LEDGER_FILE), resource_window: path.join(project, RESOURCE_WINDOW_FILE), chapter_card: chapterCard.output, due_foreshadowing: foreshadowing.due, must_advance_hooks: hookAgenda.data.must_advance.map((entry) => entry.id), range, source_count: context.manifest.sources.length };
 }
 
 function chapterFile(project, chapter) {

@@ -53,3 +53,26 @@ test('chapter facts reject fabricated manuscript evidence', () => {
   }), null, 2), 'utf8');
   assert.throws(() => chapterFacts.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_FACTS_INVALID');
 });
+
+
+test('chapter facts require bounded typed resource deltas before resource state enters context', () => {
+  const project = projectOf();
+  const relative = 'analysis/chapter-facts-ch0001.json';
+  const evidence = report().facts[0].evidence;
+  const payload = report({
+    schema_version: '1.1',
+    facts: [{
+      kind: 'resource', subject: 'Lin', claim: 'Acquires the marked receipt.', evidence,
+      resource: { holder: 'Lin', key: 'marked receipt', type: 'physical_item', action: 'acquired', status_after: 'available', risk: 'high', expected_use_by_chapter: 3 },
+    }],
+  });
+  fs.writeFileSync(path.join(project, relative), JSON.stringify(payload, null, 2), 'utf8');
+  const accepted = chapterFacts.validate(project, { chapter: '1', file: relative });
+  assert.equal(accepted.data.schema_version, '1.1');
+  assert.equal(accepted.data.facts[0].resource.key, 'marked receipt');
+
+  fs.writeFileSync(path.join(project, relative), JSON.stringify(report({
+    schema_version: '1.1', facts: [{ kind: 'resource', subject: 'Lin', claim: 'Claims an unspecified token.', evidence }],
+  }), null, 2), 'utf8');
+  assert.throws(() => chapterFacts.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_FACTS_INVALID');
+});
