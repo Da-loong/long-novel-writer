@@ -282,6 +282,8 @@ node scripts/autopilot-runner.js status <PROJECT>
 
 写作时把 `references/writing/format-and-structure.md` 当作发布格式契约，而不是把大纲表格直接改成正文。每章交付前运行 `scripts/format-gate.js`（参数为章节路径和 `--json`）；它检查移动端段落密度、长句、空行、对白独立成段、Markdown 残留、场景推进和“然后—接着—随后”式流水账链。`chapter-gate.js --stage post` 与 `autopilot-runner.js` 已自动接入该门禁：格式错误或流水账硬错误会让当前章节回到重写，低事件密度和对白缺失只进入冷读警告。
 
+章尾的“真正的考验才刚刚开始”“更大的危机还在后面”等泛化预告同样属于硬错误。钩子必须携带已发生的具体人、物、结果、决定、地点、期限或风险，读取 `references/writing/hooks-chapter.md` 后再修订。
+
 ## Durable context, memory, and foreshadowing
 
 Before a chapter transaction, retain `settings/author-intent.md` as the long-term book compass and update `state/current-focus.md` as the near-term arc target. `chapter-transaction begin` now rebuilds the typed foreshadowing index and the context pack; `finish` saves a hash-bound chapter capsule. Read `references/operations/long-context-loop.md` before changing the compass, pack policy, memory, or ledger. Use `scripts/chapter-memory.js` validate <PROJECT> --chapter <N> and `scripts/foreshadowing-index.js` <PROJECT> --chapter <N> --write for direct verification.

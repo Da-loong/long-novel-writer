@@ -10,7 +10,7 @@
 
 - 版本：`0.3.0-rc.1`
 - 初始基线：`7.5/10`
-- 当前仓库评测：`8.68/10`（98 项自动测试通过，并包含一次三读者前三章盲读前向运行）
+- 当前仓库评测：`8.68/10`（99 项自动测试通过，并包含一次三读者前三章盲读前向运行）
 - 发布门槛：任务级加权评测 `>= 8.5/10`，且无 P0、P1 未关闭问题
 - 支持环境：Windows、Linux；Node.js 20+
 - GitHub：公开仓库已建立；以 `main` 分支 CI 和发布门禁作为合并基线
@@ -113,6 +113,11 @@ Use `--max-chapters N` for a bounded test slice. The runner pauses at the three-
 ## Fanqie mobile manuscript format
 
 Each chapter is checked by `scripts/format-gate.js` before commit. The gate keeps one chapter title, single blank lines, short mobile-first paragraphs, purposeful standalone dialogue, and plain publishable prose. Markdown tables/lists/code fences, outline headings, crowded paragraphs, repeated timeline openers, and low-action subject chains are recorded as format findings; hard findings send the current chapter back to rewrite and are preserved in `analysis/autopilot-qa-chXXXX.json`.
+
+The same gate rejects generic end teasers such as “the real test has just
+begun.” A Fanqie chapter hook must leave a concrete actor, object, result,
+decision, place, deadline, or risk that the reader can inherit into the next
+chapter.
 
 ```powershell
 node "$skill\scripts\format-gate.js" .\BOOK\manuscript --json

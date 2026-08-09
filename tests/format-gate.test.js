@@ -35,3 +35,15 @@ test('format gate flags sequence-chain流水账 instead of treating it as finish
   assert.equal(report.ok, false);
   assert.ok(report.errors.some((item) => item.code === '流水账_SEQUENCE_CHAIN'));
 });
+
+test('format gate rejects a generic future teaser at the chapter end', () => {
+  const report = analyze('chapter.md', [
+    '# 雨夜的欠条', '',
+    '林越把欠条塞进旧秤，门口的人终于让开。', '',
+    '可他不知道，真正的考验才刚刚开始。',
+  ].join('\n'));
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((item) => item.code === 'GENERIC_END_HOOK'));
+  const concrete = analyze('chapter.md', '# 雨夜的欠条\n\n旧秤底下多了一张车票：明晚十二点，北站三号闸机。\n');
+  assert.equal(concrete.ok, true, JSON.stringify(concrete.errors));
+});

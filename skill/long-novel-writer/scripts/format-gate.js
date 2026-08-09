@@ -32,6 +32,10 @@ const sequenceOpeners = /^(?:然后|接着|随后|紧接着|之后|过了一会�
 // move, choice, or reaction rather than only reporting that time passed.
 const actionWords = /(?:冲|奔|抓|抢|推|伸手|抬手|拔|砸|撞|让开|扣住|掉进|亮起|转身|侧身|停下|逼近|选择|决定|发现|拒绝|答应|开口|喊|问|盯|看见|按住|后退|扑)/;
 const resultWords = /(?:却|但|于是|结果|因此|不料|发现|终于|只见|下一秒|立刻|当场|换来|失去|拿到|暴露)/;
+// These formulae promise momentum without giving the reader a concrete new
+// fact, decision, person, object, place, or time lock.  Limit detection to the
+// tail so ordinary in-scene dialogue is not treated as an ending defect.
+const genericEndHook = /(?:真正的(?:考验|麻烦|危机|好戏|较量)(?:才)?(?:刚刚)?开始|(?:更大的|新的)(?:危机|麻烦|风暴|考验)(?:还)?在(?:后面|等待)|(?:一切|故事)(?:才)?刚刚开始|(?:命运|人生)(?:的)?(?:齿轮|转折).{0,12}(?:转动|改变)|未来(?:还)?有(?:更多|更大)(?:挑战|未知))/g;
 
 function startsOf(paragraphs) {
   return paragraphs.map((paragraph) => paragraph.replace(/[“”"「」『』\s]/g, '').slice(0, 6)).filter(Boolean);
@@ -97,6 +101,11 @@ function analyze(file, text, options = {}) {
     add('warning', '流水账_LOW_EVENT_DENSITY', '动作与结果信号偏少，可能是按时间顺序罗列经过；人工复核本章因果链', { flow });
   }
   if (paragraphs.length >= 8 && quotedParagraphs === 0) add('warning', 'DIALOGUE_ABSENT', '整章没有对白；若题材需要互动，请补充有目的的对话或明确保持无对白的叙事策略');
+  const ending = body.slice(-700);
+  genericEndHook.lastIndex = 0;
+  for (const match of ending.matchAll(genericEndHook)) {
+    add('error', 'GENERIC_END_HOOK', '章尾只预告未来危机，未交付可继承的具体变化；改成谁来了、什么失去/获得、必须何时何地做何选择等事实', { excerpt: match[0] });
+  }
 
   return {
     ok: errors.length === 0,
@@ -125,4 +134,4 @@ if (require.main === module) {
   catch (error) { process.exitCode = emitError(error, 'format-gate'); }
 }
 
-module.exports = { argsOf, bodyOf, chineseChars, paragraphsOf, startsOf, repeatedStarts, analyze, run };
+module.exports = { argsOf, bodyOf, chineseChars, paragraphsOf, startsOf, repeatedStarts, genericEndHook, analyze, run };
