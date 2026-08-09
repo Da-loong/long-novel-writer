@@ -865,11 +865,12 @@ function runPanel(project, config, options, run) {
   const average = (key) => reports.reduce((sum, item) => sum + Number(item[key] || 0), 0) / reports.length;
   const comprehension = reports.filter((item) => Number(item.comprehension_0_to_10) >= 7).length / reports.length;
   const continuation = reports.filter((item) => item.would_continue === true).length / reports.length;
+  const vetoes = reports.filter((item) => item.veto === true);
   const evidence = {
     schema_version: '1.2', reviewed_through: 3, review_mode: reviewMode, independent_readers: reports.length, distinct_models: [...new Set(reports.map((item) => item.model_id))].length, distinct_roles: [...new Set(reports.map((item) => item.role_id))].length,
     reader_score: Number((average('continuation_0_to_10') * 0.4 + average('platform_fit_0_to_10') * 0.25 + average('comprehension_0_to_10') * 0.2 + average('prose_naturalness_0_to_10') * 0.15).toFixed(2)),
     platform_fit: Number(average('platform_fit_0_to_10').toFixed(2)), comprehension_pass_rate: Number(comprehension.toFixed(2)), continuation_rate: Number(continuation.toFixed(2)),
-    critical_failures: 0, target_anchors: anchors,
+    critical_failures: vetoes.length, vetoes: vetoes.map((item) => ({ reader_id: item.reader_id, role_id: item.role_id, model_id: item.model_id, reason: String(item.veto_reason || item.reason || '').slice(0, 1000) })), target_anchors: anchors,
     reader_reports: reports.map((item) => ({ reader_id: item.reader_id || '', role_id: item.role_id, model_id: item.model_id, transcript: item.transcript, summary: String(item.reason || item.strongest_hook || '').slice(0, 1000), confusions: Array.isArray(item.confusions) ? item.confusions : [], continue_next: item.would_continue, veto: item.veto === true, veto_reason: String(item.veto_reason || '').slice(0, 1000) })),
     findings: [], raw_reports: reports,
     reason: reviewMode === 'cross_model' ? 'Cross-model role-based cold-reader panel completed by the autopilot.' : 'Single-model, role-separated cold-reader panel completed by the autopilot.', updated_at: new Date().toISOString(),
