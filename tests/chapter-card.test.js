@@ -42,6 +42,7 @@ test('chapter card binds a beat, knowledge boundary, due foreshadowing, and scen
   assert.match(result.card.reader_experience_contract.net_change, /loses the safe route/);
   assert.equal(result.card.quality_guidance.source, 'state/quality-guidance.json');
   assert.equal(result.card.repair_debt_guidance.source, 'state/repair-debt-guidance.json');
+  assert.deepEqual(result.card.repair_lessons.lessons, []);
   assert.equal(result.card.plot_unit.enabled, true);
   assert.equal(result.card.plot_unit.unit.id, 'U-01');
   assert.equal(result.card.plot_unit.unit.phase, 'setup');
@@ -64,6 +65,7 @@ test('chapter card binds a beat, knowledge boundary, due foreshadowing, and scen
   assert.ok(pack.manifest.sources.some((item) => item.path === 'state/quality-guidance.json' && item.tier === 'critical'));
   assert.ok(pack.manifest.sources.some((item) => item.path === 'state/repair-debt-guidance.json' && item.tier === 'critical'));
   assert.ok(pack.manifest.sources.some((item) => item.path === 'state/plot-unit-window.json' && item.tier === 'critical'));
+  assert.ok(pack.manifest.sources.some((item) => item.path === 'state/repair-lessons.json' && item.tier === 'critical'));
   assert.ok(audit(project).artifacts.some((item) => item.path === 'state/chapter-cards/ch-0001.json'));
 });
 

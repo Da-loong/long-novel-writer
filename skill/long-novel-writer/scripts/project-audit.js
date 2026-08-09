@@ -48,6 +48,7 @@ const TRACKED = [
   'state/quality-guidance.json',
   'state/repair-debt-ledger.json',
   'state/repair-debt-guidance.json',
+  'state/repair-lessons.json',
   'state/plot-unit-window.json',
 ];
 

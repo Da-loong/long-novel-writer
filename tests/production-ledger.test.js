@@ -62,6 +62,8 @@ test('begin transaction builds context and locks the chapter before drafting', (
   assert.match(current.transaction.quality_trend.path, /quality-trend-ledger\.json$/);
   assert.match(current.transaction.quality_trend.guidance_path, /quality-guidance\.json$/);
   assert.equal(current.transaction.repair_debt.entries, 0);
+  assert.equal(current.transaction.repair_lessons.count, 0);
+  assert.match(current.transaction.repair_lessons.path, /repair-lessons\.json$/);
   assert.equal(current.transaction.plot_unit.enabled, false);
   assert.match(current.transaction.plot_unit.path, /plot-unit-window\.json$/);
   assert.match(current.transaction.repair_debt.path, /repair-debt-ledger\.json$/);
@@ -78,6 +80,7 @@ test('begin transaction builds context and locks the chapter before drafting', (
   assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /quality-guidance\.json/);
   assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /repair-debt-guidance\.json/);
   assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /plot-unit-window\.json/);
+  assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /repair-lessons\.json/);
   assert.equal(current.has_active_transaction, true);
   assert.equal(current.next_action, 'finish --chapter 1');
 });

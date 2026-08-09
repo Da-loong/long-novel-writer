@@ -121,6 +121,18 @@ function repairDebtGuidanceOf(project, chapter) {
   }
 }
 
+function repairLessonsOf(project, chapter) {
+  const source = 'state/repair-lessons.json';
+  const text = readText(project, source);
+  if (!text) return { source, target_chapter: null, lessons: [], warnings: [] };
+  try {
+    const data = JSON.parse(text);
+    return { source, target_chapter: Number(data.target_chapter || 0) || null, lessons: Array.isArray(data.lessons) ? data.lessons : [], warnings: Array.isArray(data.warnings) ? data.warnings : [] };
+  } catch (error) {
+    throw new CliError('CHAPTER_CARD_REPAIR_LESSONS_INVALID', 'Repair lessons JSON is invalid', { source, message: error.message });
+  }
+}
+
 function plotUnitOf(project, chapter) {
   const source = 'state/plot-unit-window.json';
   const text = readText(project, source);
@@ -182,10 +194,11 @@ function build(projectInput, options = {}) {
   const resourceWindow = resourceWindowOf(project, chapter);
   const qualityGuidance = qualityGuidanceOf(project, chapter);
   const repairDebtGuidance = repairDebtGuidanceOf(project, chapter);
+  const repairLessons = repairLessonsOf(project, chapter);
   const plotUnit = plotUnitOf(project, chapter);
   const sources = [
     'settings/author-intent.md', 'state/current-focus.md', 'settings/reader-contract.md', 'settings/platform-contract.md',
-    'outline/chapter-beats.md', 'state/current-state.md', 'state/character-state.md', 'state/character-contracts.json', 'state/style-contract.json', 'state/unresolved-hooks.md', foreshadowing.source, resourceWindow.source, qualityGuidance.source, repairDebtGuidance.source, plotUnit.source,
+    'outline/chapter-beats.md', 'state/current-state.md', 'state/character-state.md', 'state/character-contracts.json', 'state/style-contract.json', 'state/unresolved-hooks.md', foreshadowing.source, resourceWindow.source, qualityGuidance.source, repairDebtGuidance.source, repairLessons.source, plotUnit.source,
   ];
   const card = {
     schema_version: '1.0', generated_at: new Date().toISOString(), chapter, status: errors.length ? 'blocked' : 'ready',
@@ -205,6 +218,7 @@ function build(projectInput, options = {}) {
     resource_window: resourceWindow,
     quality_guidance: qualityGuidance,
     repair_debt_guidance: repairDebtGuidance,
+    repair_lessons: repairLessons,
     plot_unit: plotUnit,
     drafting_protocol: {
       draft_a: 'Deliver the beat through visible scene action and preserve the knowledge boundary.',
@@ -268,4 +282,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-card'); }
 }
 
-module.exports = { CARD_DIR, REQUIRED_BEAT_FIELDS, REQUIRED_READER_EXPERIENCE_FIELDS, CHAPTER_OBLIGATION_FIELDS, argsOf, cellsOf, tableRows, beatOf, knowledgeOf, dueForeshadowing, resourceWindowOf, qualityGuidanceOf, repairDebtGuidanceOf, plotUnitOf, sourceHashes, cardFile, readerExperienceOf, chapterObligationsOf, build, write, validate, run };
+module.exports = { CARD_DIR, REQUIRED_BEAT_FIELDS, REQUIRED_READER_EXPERIENCE_FIELDS, CHAPTER_OBLIGATION_FIELDS, argsOf, cellsOf, tableRows, beatOf, knowledgeOf, dueForeshadowing, resourceWindowOf, qualityGuidanceOf, repairDebtGuidanceOf, repairLessonsOf, plotUnitOf, sourceHashes, cardFile, readerExperienceOf, chapterObligationsOf, build, write, validate, run };

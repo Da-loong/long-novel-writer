@@ -403,6 +403,8 @@ loop repeatedly had to repair. `scripts/repair-debt-ledger.js` derives
 `state/repair-debt-ledger.json` and a compact `state/repair-debt-guidance.json`
 from all saved cold-reader rounds. It classifies repeated repair debt,
 scene-contract delivery debt, diagnostic drift, and exhausted revision budgets.
+The transaction also promotes only cross-chapter recurring debt into hash-bound `state/repair-lessons.json`, preventing one-off false lessons and keeping the next chapter focused on the repeated defect. Read `references/operations/repair-lessons-loop.md`.
+
 The transaction freezes the guidance into context and the chapter card; failed
 attempts refresh it before retry. It remains advisory and cannot bypass the
 chapter card, Canon, or evidence gates. Read
