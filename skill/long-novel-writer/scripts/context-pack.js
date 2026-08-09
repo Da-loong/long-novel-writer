@@ -137,7 +137,7 @@ function build(projectInput, options = {}) {
   const critical = [
     ...byPresence('critical', ['settings/reader-contract.md', 'settings/platform-contract.md', 'settings/author-intent.md']),
     ...(chapterBeat ? [candidate('critical', chapterBeat.name, chapterBeat)] : []),
-    ...byPresence('critical', ['state/current-state.md', 'state/current-focus.md', 'state/unresolved-hooks.md', 'state/feedback-rules.json', 'state/style-contract.json', 'state/character-contracts.json', 'state/foreshadowing-index.json', 'state/foreshadowing-progress.json', 'state/hook-agenda.json', 'state/resource-window.json', 'state/pacing-ledger.json', chapterCard]),
+    ...byPresence('critical', ['state/current-state.md', 'state/current-focus.md', 'state/unresolved-hooks.md', 'state/feedback-rules.json', 'state/style-contract.json', 'state/character-contracts.json', 'state/foreshadowing-index.json', 'state/foreshadowing-progress.json', 'state/hook-agenda.json', 'state/resource-window.json', 'state/pacing-ledger.json', 'state/quality-guidance.json', chapterCard]),
   ];
   const hotState = [...byPresence('hot-state', ['state/character-state.md', 'state/timeline.md', 'state/workflow-run.json']), ...recentFactLedgers(project, targetChapter, recentCount)];
   const warm = byPresence('warm-core', [

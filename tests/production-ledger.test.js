@@ -57,6 +57,9 @@ test('begin transaction builds context and locks the chapter before drafting', (
   assert.equal(current.transaction.resource_ledger.active_resources, 0);
   assert.match(current.transaction.resource_ledger.path, /resource-ledger\.json$/);
   assert.match(current.transaction.resource_ledger.window_path, /resource-window\.json$/);
+  assert.equal(current.transaction.quality_trend.entries, 0);
+  assert.match(current.transaction.quality_trend.path, /quality-trend-ledger\.json$/);
+  assert.match(current.transaction.quality_trend.guidance_path, /quality-guidance\.json$/);
   assert.ok(current.transaction.canon['evidence/derivations/style-signals.md']);
   assert.ok(current.transaction.canon['evidence/derivations/character-contracts.md']);
   assert.ok(fs.existsSync(path.join(project, 'state', 'feedback-rules.json')));
@@ -66,6 +69,7 @@ test('begin transaction builds context and locks the chapter before drafting', (
   assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /style-contract\.json/);
   assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /character-contracts\.json/);
   assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /resource-window\.json/);
+  assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /quality-guidance\.json/);
   assert.equal(current.has_active_transaction, true);
   assert.equal(current.next_action, 'finish --chapter 1');
 });

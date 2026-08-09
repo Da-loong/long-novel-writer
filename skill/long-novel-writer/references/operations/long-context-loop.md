@@ -8,7 +8,7 @@
 
 `context-pack.js` rebuilds `state/context-pack.md` before each transaction. It uses this priority order:
 
-1. critical compass, reader/platform contracts, target beat, current state, unresolved hooks, derived foreshadowing index, and the target resource window;
+1. critical compass, reader/platform contracts, target beat, current state, unresolved hooks, derived foreshadowing index, target resource window, and quality guidance;
 2. the recent manuscript window;
 3. current character/timeline state and warm canon;
 4. older relevant chapter capsules.
@@ -49,3 +49,13 @@ concealment, loss, damage, and access facts. Stale or expected-use-due resources
 become warnings, never invented plot events. Read
 references/operations/resource-ledger-loop.md and update with
 scripts/resource-ledger.js update <PROJECT> --chapter <N>.
+
+## Quality trend guidance
+
+`quality-trend-ledger.js` rebuilds the accepted cold-reader receipt and a
+bounded next-chapter craft diagnosis. The pack includes only
+`state/quality-guidance.json`; the full ledger remains an audit artifact. The
+brief identifies a weak reader-experience dimension from hash-matched accepted
+reports. It guides scene execution but cannot override the card, Canon, or
+reader contract. Read `references/operations/quality-trend-loop.md` before
+changing thresholds or using the trend in a repair prompt.

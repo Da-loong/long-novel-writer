@@ -29,6 +29,7 @@ const foreshadowingReconcile = require('./foreshadowing-reconcile');
 const hookAgenda = require('./hook-agenda');
 const resourceLedger = require('./resource-ledger');
 const pacingLedger = require('./pacing-ledger');
+const qualityTrendLedger = require('./quality-trend-ledger');
 
 const RUN_FILE = 'state/autopilot-run.json';
 const LEDGER_FILE = 'state/autopilot-run-ledger.jsonl';
@@ -313,9 +314,9 @@ function quarantineChapter(project, chapter, attempt) {
   });
 }
 
-function ensureQa(project, chapter, metrics, ai, deg, format, revisionPasses = [], readerReviews = [], chapterFactReport = null, foreshadowingProgress = null, hookAgendaReport = null, resourceLedgerReport = null) {
+function ensureQa(project, chapter, metrics, ai, deg, format, revisionPasses = [], readerReviews = [], chapterFactReport = null, foreshadowingProgress = null, hookAgendaReport = null, resourceLedgerReport = null, qualityTrendReport = null) {
   const relative = `analysis/autopilot-qa-ch${String(chapter).padStart(4, '0')}.json`;
-  const payload = { schema_version: '1.6', chapter, metrics, ai_patterns: ai, degeneration: deg, format, revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: chapterFactReport, foreshadowing_progress: foreshadowingProgress, hook_agenda: hookAgendaReport, resource_ledger: resourceLedgerReport, created_at: new Date().toISOString() };
+  const payload = { schema_version: '1.7', chapter, metrics, ai_patterns: ai, degeneration: deg, format, revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: chapterFactReport, foreshadowing_progress: foreshadowingProgress, hook_agenda: hookAgendaReport, resource_ledger: resourceLedgerReport, quality_trend: qualityTrendReport, created_at: new Date().toISOString() };
   writeJson(path.join(project, relative), payload);
   if (!fs.existsSync(path.join(project, 'analysis', 'qa-report.md'))) atomicWrite(path.join(project, 'analysis', 'qa-report.md'), `# QA chapter ${chapter}\n\n- deterministic report: ${relative}\n`);
   return relative;
@@ -528,7 +529,7 @@ function revisionPrompt(project, chapter, manuscript, pass, inspection, readerRe
     `You are the ${task} node for Chinese web-novel chapter ${chapter}.`,
     `Project root: ${project}`,
     `Edit only this manuscript: ${relativePath(project, manuscript)}. Keep the same filename and one chapter title.`,
-    `Read the binding chapter card at state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, the context pack, current state, state/feedback-rules.json, state/style-contract.json, state/character-contracts.json, state/hook-agenda.json, state/resource-window.json, and the deterministic QA findings below.`,
+    `Read the binding chapter card at state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, the context pack, current state, state/feedback-rules.json, state/style-contract.json, state/character-contracts.json, state/hook-agenda.json, state/resource-window.json, state/quality-guidance.json, and the deterministic QA findings below.`,
     `QA findings: ${JSON.stringify(inspection.quality)}`,
     `Cold-reader findings: ${JSON.stringify(readerReview?.report || { enabled: false })}`,
     `Follow this binding repair brief: ${brief || 'no brief generated'}.`,
@@ -569,11 +570,11 @@ function chapterPrompt(project, chapter, transactionResult) {
     `Project root: ${project}`,
     `Write exactly chapter ${chapter}. The transaction and context pack already exist: ${transactionResult.context}.`,
     `The binding chapter card is state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json.`,
-    'Read the local skill, author intent, current focus, reader contract, platform contract, chapter card, chapter beat, context pack, current state, unresolved hooks, feedback rules, style contract, character contracts, foreshadowing progress, hook agenda, resource window, and pacing ledger when present. Every active feedback rule, adopted style signal, and active character contract is a reader-experience constraint, not a note to summarize. Let each on-page contract character act from an own goal, pressure, information boundary, and voice/action profile. Never copy source-specific names, plots, or wording from the evidence behind a style signal.',
+    'Read the local skill, author intent, current focus, reader contract, platform contract, chapter card, chapter beat, context pack, current state, unresolved hooks, feedback rules, style contract, character contracts, foreshadowing progress, hook agenda, resource window, pacing ledger, and quality guidance when present. Every active feedback rule, adopted style signal, and active character contract is a reader-experience constraint, not a note to summarize. Let each on-page contract character act from an own goal, pressure, information boundary, and voice/action profile. Never copy source-specific names, plots, or wording from the evidence behind a style signal.',
     `Create one file matching manuscript/ch-${String(chapter).padStart(4, '0')}-<title>.md with complete publishable Chinese prose.`,
     'Format contract: keep one chapter title only, then plain prose separated by single blank lines; no outline headings, lists, tables, code fences, logs, or self-evaluation.',
     'Keep paragraphs mobile-first (normally under 260 Chinese characters) and split long sentences at action, reaction, dialogue, and result beats. Put purposeful dialogue in its own paragraph.',
-    'Move through a visible action or choice quickly; every scene must change a goal, obstacle, relationship, clue, or resource. Before the end, pay the reader with one visible result, answer, gain/loss, relationship/resource shift, or actionable new fact; a threat postponed to the next chapter is not enough. Respect pacing-ledger warnings by varying the primary hook or payoff shape while preserving the binding chapter beat. When state/hook-agenda.json names must_advance or stale_debt, visibly move one named hook by escalation, evidence, consequence, or payoff before opening sibling mysteries; a generic restatement does not count. Treat state/resource-window.json as hard continuity: do not invent possession, availability, consumption, or access that conflicts with an evidence-bound resource record. Do not chain paragraphs with “然后/接着/随后” as a timeline summary.',
+    'Move through a visible action or choice quickly; every scene must change a goal, obstacle, relationship, clue, or resource. Before the end, pay the reader with one visible result, answer, gain/loss, relationship/resource shift, or actionable new fact; a threat postponed to the next chapter is not enough. Respect pacing-ledger warnings by varying the primary hook or payoff shape while preserving the binding chapter beat. Treat state/quality-guidance.json as a targeted craft diagnosis: improve only its named weak reader-experience dimension through this chapter\'s assigned scene, but never override canon or manufacture unrelated plot. When state/hook-agenda.json names must_advance or stale_debt, visibly move one named hook by escalation, evidence, consequence, or payoff before opening sibling mysteries; a generic restatement does not count. Treat state/resource-window.json as hard continuity: do not invent possession, availability, consumption, or access that conflicts with an evidence-bound resource record. Do not chain paragraphs with “然后/接着/随后” as a timeline summary.',
     'End on a concrete changed situation or unanswered hook. The final file must read like publishable Tomato/Fanqie web fiction, not a plan or a chronological log.',
     'Do not put planning notes, placeholders, model commentary, or markdown tables in the manuscript. Do not edit settings or outline files during the transaction.',
     'If continuity files need a factual update, update state/current-state.md, state/character-state.md, state/timeline.md, state/unresolved-hooks.md, and state/current-focus.md only. Leave project-state updated_through for the orchestrator.',
@@ -664,7 +665,7 @@ function runChapter(project, config, options, run) {
   if (readerReview.should_revise) throw new CliError('CHAPTER_READER_REVIEW_FAILED', `Chapter ${actualChapter} cold-reader review still requires revision`, { chapter: actualChapter, qa, reader_review: readerReviewSummary(readerReview, readerReviews.length), revision_passes: revisionPasses });
   const factRelative = `analysis/chapter-facts-ch${String(actualChapter).padStart(4, '0')}.json`;
   const factLedgerRelative = `${chapterFacts.FACT_LEDGER_DIR}/ch-${String(actualChapter).padStart(4, '0')}.json`;
-  const factBefore = [factRelative, factLedgerRelative, foreshadowingReconcile.OUTPUT, hookAgenda.OUTPUT, resourceLedger.OUTPUT, resourceLedger.WINDOW_OUTPUT].map((relative) => {
+  const factBefore = [factRelative, factLedgerRelative, foreshadowingReconcile.OUTPUT, hookAgenda.OUTPUT, resourceLedger.OUTPUT, resourceLedger.WINDOW_OUTPUT, qualityTrendLedger.LEDGER_FILE, qualityTrendLedger.GUIDANCE_FILE].map((relative) => {
     const file = path.join(project, relative);
     return { file, text: fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null };
   });
@@ -673,6 +674,7 @@ function runChapter(project, config, options, run) {
   let foreshadowingProgress;
   let hookAgendaReport;
   let resourceLedgerReport;
+  let qualityTrendReport;
   try {
     facts = requestFactExtraction(project, actualChapter, manuscript, config, options);
     if (facts.agent) agentRuns.push(facts.agent);
@@ -696,6 +698,8 @@ function runChapter(project, config, options, run) {
   commitState(project, actualChapter, words);
   continuity(project, actualChapter, manuscript);
   const pacing = readerReview.enabled ? pacingLedger.update(project, { chapter: String(actualChapter) }) : { ok: true, skipped: true, reason: 'chapter reader review disabled' };
+  qualityTrendReport = qualityTrendLedger.write(project, { chapter: String(actualChapter + 1) });
+  qa = ensureQa(project, actualChapter, metrics, ai, deg, format, revisionPasses, readerReviews, factSummary, foreshadowingProgress, hookAgendaReport, resourceLedgerReport, qualityTrendReport);
   const finished = transaction.finish(project, { chapter: actualChapter });
   if (!finished.ok) {
     restoreState(project, before);
@@ -710,14 +714,14 @@ function runChapter(project, config, options, run) {
     try { transaction.abort(project, { reason: `finish failed: ${JSON.stringify(finished.errors)}` }); } catch (_) { /* retain the failure record */ }
     throw new CliError('CHAPTER_POST_GATE_FAILED', `Chapter ${actualChapter} post-gate failed`, { errors: finished.errors, warnings: finished.warnings });
   }
-  const chapterArtifacts = [relativePath(project, manuscript), qa, finished.event.chapter_memory.path, ...readerReviews.filter((item) => item.enabled).map((item) => item.file), ...(factSummary.enabled ? [factSummary.file, factSummary.ledger] : []), ...(foreshadowingProgress.output ? [foreshadowingProgress.output] : []), ...(hookAgendaReport?.output ? [hookAgendaReport.output] : []), ...(resourceLedgerReport?.output ? [resourceLedgerReport.output, resourceLedgerReport.window_output] : []), ...(pacing.output ? [pacing.output] : []), ...revisionArtifacts];
+  const chapterArtifacts = [relativePath(project, manuscript), qa, finished.event.chapter_memory.path, ...readerReviews.filter((item) => item.enabled).map((item) => item.file), ...(factSummary.enabled ? [factSummary.file, factSummary.ledger] : []), ...(foreshadowingProgress.output ? [foreshadowingProgress.output] : []), ...(hookAgendaReport?.output ? [hookAgendaReport.output] : []), ...(resourceLedgerReport?.output ? [resourceLedgerReport.output, resourceLedgerReport.window_output] : []), ...(pacing.output ? [pacing.output] : []), qualityTrendLedger.LEDGER_FILE, qualityTrendLedger.GUIDANCE_FILE, ...revisionArtifacts];
   workflow.postHoc(project, { chapter: actualChapter, summary: `Chapter ${actualChapter} committed with ${countText(text).chinese_chars} Chinese characters.`, artifacts: chapterArtifacts.join(',') });
   if (actualChapter === 1) finishWorkflowFirstChapter(project, actualChapter, manuscript, config, options);
   const readerReviewResult = readerReviewSummary(readerReview, readerReviews.length);
-  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress.audit || null, hook_agenda: hookAgendaReport?.audit || null, resource_ledger: resourceLedgerReport?.audit || null, pacing: pacing.audit || null, quality }, word_count: words };
+  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress.audit || null, hook_agenda: hookAgendaReport?.audit || null, resource_ledger: resourceLedgerReport?.audit || null, pacing: pacing.audit || null, quality_trend: qualityTrendReport.ledger.audit || null, quality }, word_count: words };
   updateRun(project, nextState);
-  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress.audit || null, hook_agenda: hookAgendaReport?.audit || null, resource_ledger: resourceLedgerReport?.audit || null, pacing: pacing.audit || null, word_count: words, quality });
-  return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress, hook_agenda: hookAgendaReport, resource_ledger: resourceLedgerReport, pacing };
+  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress.audit || null, hook_agenda: hookAgendaReport?.audit || null, resource_ledger: resourceLedgerReport?.audit || null, pacing: pacing.audit || null, quality_trend: qualityTrendReport.ledger.audit || null, word_count: words, quality });
+  return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress, hook_agenda: hookAgendaReport, resource_ledger: resourceLedgerReport, pacing, quality_trend: qualityTrendReport };
 }
 
 function quoteFromChapter(project, chapter) {
@@ -817,8 +821,8 @@ function review(project, chapter, config, options, run) {
   const relative = `analysis/review-${String(chapter).padStart(4, '0')}.md`;
   invokeAgent(project, 'review', [
     'Perform a cross-chapter review for a Chinese web-novel production run.',
-    `Read the latest ${config.review_interval} chapters and current state. Write ${relative}.`,
-    'Check reader contract, progression, hook cadence, character continuity, unresolved promises, and platform fit. Record evidence paths and concrete next actions. Do not rewrite canon in this task.',
+    `Read the latest ${config.review_interval} chapters, current state, state/quality-trend-ledger.json, and state/quality-guidance.json. Write ${relative}.`,
+    'Check reader contract, progression, hook cadence, character continuity, unresolved promises, platform fit, and the evidence-derived weakest reader-experience dimension. Record evidence paths and concrete next actions. Do not rewrite canon in this task.',
   ].join('\n'), config, options);
   if (!fs.existsSync(path.join(project, relative))) throw new CliError('REVIEW_ARTIFACT_MISSING', `Review did not create ${relative}`, { artifact: relative });
   const auto = autoState(project);

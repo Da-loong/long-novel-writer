@@ -378,6 +378,18 @@ release beats without forcing a formula onto the novel. Read
 `references/operations/pacing-ledger.md`; inspect with
 `scripts/pacing-ledger.js` using `audit <PROJECT>`.
 
+## Cross-chapter quality trajectory
+
+The runner also turns only accepted, manuscript-hash-matched cold-reader
+reports into `state/quality-trend-ledger.json` and a compact
+`state/quality-guidance.json` for the next chapter. It detects the weakest of
+clarity, continuation, Fanqie fit, character agency, and payoff; it separately
+flags a meaningful score decline or a repeated low dimension. The brief is
+frozen into the transaction and context pack, but it can never override the
+chapter card, Canon, or reader/platform contracts. Read
+`references/operations/quality-trend-loop.md`; inspect with
+`scripts/quality-trend-ledger.js` with the `audit <PROJECT>` command.
+
 ## Focused editorial dimensions
 
 The unattended cold-reader report uses schema `1.5` and includes eight

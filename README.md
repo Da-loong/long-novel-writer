@@ -255,3 +255,19 @@ advises the next Fanqie chapter while preserving its approved beat and Canon.
 ```powershell
 node "$skill\scripts\pacing-ledger.js" audit .\BOOK
 ```
+
+## Cross-chapter quality trajectory
+
+Openwrite's rolling-plan idea is distilled into a file-first diagnostic loop:
+only final accepted cold-reader reports whose manuscript hashes still match are
+placed in `state/quality-trend-ledger.json`. The companion
+`state/quality-guidance.json` names the current weak reader-experience
+dimension, weakest chapter, and a meaningful decline or repeated low-score
+streak. The next chapter transaction freezes the brief into its context and
+chapter card; it advises craft execution but cannot change the approved beat or
+Canon.
+
+```powershell
+node "$skill\scripts\quality-trend-ledger.js" audit .\BOOK
+node "$skill\scripts\quality-trend-ledger.js" update .\BOOK --chapter 13
+```
