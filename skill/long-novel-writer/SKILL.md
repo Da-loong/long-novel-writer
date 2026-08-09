@@ -317,6 +317,15 @@ enters the next context pack. Read
 `references/operations/chapter-fact-ledger.md`; validate through
 `scripts/chapter-facts.js` using `validate <PROJECT> --chapter <N>`.
 
+## Evidence-bound foreshadowing reconciliation
+
+Keep the planning ledger and prose proof separate. After a final chapter fact
+extract, reconcile its `hook_open` and `hook_closed` facts against exact plan
+IDs. `state/foreshadowing-progress.json` enters the next critical context pack;
+an active payoff due at the accepted chapter requires literal closure evidence.
+Read `references/operations/foreshadowing-evidence-loop.md`; inspect with
+`scripts/foreshadowing-reconcile.js` using `update <PROJECT> --chapter <N>`.
+
 Every repair starts from a snapshot, receives a deterministic repair brief, and
 is kept only when its deterministic debt or cold-reader evidence measurably
 improves. A plateau restores the prior manuscript and leaves the chapter open

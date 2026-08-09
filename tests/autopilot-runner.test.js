@@ -96,6 +96,9 @@ test('autopilot runner executes preparation and one durable chapter slice', () =
   const facts = JSON.parse(fs.readFileSync(path.join(project, 'state', 'fact-ledger', 'ch-0001.json'), 'utf8'));
   assert.equal(facts.facts.length, 1);
   assert.equal(facts.facts[0].kind, 'event');
+  const progress = JSON.parse(fs.readFileSync(path.join(project, 'state', 'foreshadowing-progress.json'), 'utf8'));
+  assert.equal(progress.updated_through, 1);
+  assert.equal(progress.audit.planned, 1);
   const run = JSON.parse(fs.readFileSync(path.join(project, 'state', 'autopilot-run.json'), 'utf8'));
   assert.deepEqual(run.completed_prepare_nodes, ['build', 'character', 'story-plan', 'outline']);
   assert.ok(fs.existsSync(path.join(project, 'state', 'agent-runs')));
@@ -251,4 +254,28 @@ test('unimproved cold-reader repair is discarded and leaves the previous draft a
   const rejected = JSON.parse(fs.readFileSync(path.join(project, 'state', 'chapter-revisions', 'ch-0001-r01.json'), 'utf8'));
   assert.equal(rejected.decision.accepted, false);
   assert.equal(rejected.decision.reason, 'score_plateau_or_regression');
+});
+
+test('unproven due foreshadowing rolls fact artifacts and progress back before commit', () => {
+  const project = projectOf();
+  const dueButUnproven = (request) => {
+    const result = fakeAgent(request);
+    if (request.task === 'outline') {
+      fs.writeFileSync(path.join(request.project, 'outline', 'foreshadowing-ledger.md'), [
+        '# Foreshadowing', '',
+        '| ID | First | Content | Strength | Payoff | Status |',
+        '|---|---:|---|---:|---:|---|',
+        '| F1 | 1 | the receipt | 1 | 1 | open |',
+      ].join('\n'), 'utf8');
+    }
+    return result;
+  };
+  runner.start(project, { 'max-attempts': '1' });
+  const report = runner.runProject(project, { 'max-chapters': '1', invokeAgent: dueButUnproven });
+  assert.equal(report.ok, false, JSON.stringify(report));
+  assert.equal(report.code, 'CHAPTER_FORESHADOWING_GATE_FAILED');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(project, 'state', 'project-state.json'), 'utf8')).updated_through, 0);
+  assert.equal(fs.existsSync(path.join(project, 'analysis', 'chapter-facts-ch0001.json')), false);
+  assert.equal(fs.existsSync(path.join(project, 'state', 'fact-ledger', 'ch-0001.json')), false);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(project, 'state', 'foreshadowing-progress.json'), 'utf8')).updated_through, 0);
 });
