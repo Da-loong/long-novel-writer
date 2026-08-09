@@ -117,3 +117,15 @@ Each chapter is checked by `scripts/format-gate.js` before commit. The gate keep
 ```powershell
 node "$skill\scripts\format-gate.js" .\BOOK\manuscript --json
 ```
+
+
+## Durable story context
+
+Every initialized project includes an author-intent compass, a current-focus file, a derived foreshadowing index, and chapter-memory capsules. The transaction flow rebuilds the index and priority context before drafting, then captures a hash-bound memory capsule on commit.
+
+```powershell
+node "$skill\scripts\foreshadowing-index.js" .\BOOK --chapter 12 --write
+node "$skill\scripts\chapter-memory.js" validate .\BOOK --chapter 12
+```
+
+The context-pack manifest reports critical, recent, warm, and cold-retrieved budget use. See `skill/long-novel-writer/references/operations/long-context-loop.md`.

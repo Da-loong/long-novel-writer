@@ -16,6 +16,8 @@ const TRACKED = [
   'settings/reader-contract.md',
   'settings/platform-contract.md',
   'settings/platform-classroom-map.md',
+  'settings/author-intent.md',
+  'settings/context-policy.json',
   'settings/workflow-policy.json',
   'evidence/sources/source-index.md',
   'evidence/sources/writer-classroom-index.md',
@@ -28,6 +30,8 @@ const TRACKED = [
   'state/post-hoc-ledger.jsonl',
   'state/autopilot-run.json',
   'state/autopilot-run-ledger.jsonl',
+  'state/current-focus.md',
+  'state/foreshadowing-index.json',
 ];
 
 function argsOf(argv) {
@@ -50,10 +54,17 @@ function readJson(file, fallback = {}) {
   catch (error) { throw new CliError('JSON_INVALID', `读取失败：${path.basename(file)}`, { file, message: error.message }); }
 }
 
+function dynamicTracked(project) {
+  const directory = path.join(project, 'state', 'chapter-memory');
+  if (!fs.existsSync(directory)) return [];
+  return fs.readdirSync(directory).filter((name) => /^ch-\d{4}\.json$/i.test(name)).sort().map((name) => `state/chapter-memory/${name}`);
+}
+
 function audit(projectInput, options = {}) {
   const project = path.resolve(projectInput);
   if (!fs.existsSync(project)) throw new CliError('PATH_NOT_FOUND', '项目目录不存在', { project });
-  const files = TRACKED.filter((relative) => fs.existsSync(path.join(project, relative))).map((relative) => {
+  const tracked = [...new Set([...TRACKED, ...dynamicTracked(project)])].sort();
+  const files = tracked.filter((relative) => fs.existsSync(path.join(project, relative))).map((relative) => {
     const file = path.join(project, relative);
     const stat = fs.statSync(file);
     return { path: relative, bytes: stat.size, sha256: sha256(file) };
@@ -103,4 +114,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'project-audit'); }
 }
 
-module.exports = { TRACKED, argsOf, sha256, audit, run };
+module.exports = { TRACKED, argsOf, sha256, dynamicTracked, audit, run };

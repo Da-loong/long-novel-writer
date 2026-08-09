@@ -6,6 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const { CliError, emitError, atomicWrite } = require('./cap-utils');
 const { build } = require('./context-pack');
+const { write: writeForeshadowingIndex } = require('./foreshadowing-index');
+const { capture: captureChapterMemory } = require('./chapter-memory');
 const { gate } = require('./chapter-gate');
 
 const TRANSACTION_FILE = 'state/chapter-transaction.json';
@@ -119,6 +121,12 @@ function begin(projectInput, options = {}) {
   if (chapter !== expected) throw new CliError('NEXT_CHAPTER_MISMATCH', `下一章应为 ${expected}`, { expected, chapter });
   requirePilotApproval(project, state, chapter);
   const range = numericRange(options);
+  const foreshadowing = writeForeshadowingIndex(project, { chapter: String(chapter) });
+  if (foreshadowing.errors.length) return {
+    ok: false, command: 'begin', project, chapter, transaction_written: false,
+    errors: foreshadowing.errors.map((item) => ({ severity: 'error', code: item.code, file: 'outline/foreshadowing-ledger.md', detail: JSON.stringify(item) })),
+    warnings: foreshadowing.warnings, foreshadowing_index: path.join(project, 'state', 'foreshadowing-index.json'),
+  };
   const context = build(project, { chapter: String(chapter), query: options.query || '', recent: options.recent, retrieve: options.retrieve, budget: options.budget });
   const contextPath = path.join(project, 'state', 'context-pack.md');
   atomicWrite(contextPath, context.markdown);
@@ -129,10 +137,11 @@ function begin(projectInput, options = {}) {
     schema_version: '1.0', transaction_id: `ch-${String(chapter).padStart(4, '0')}-${Date.now()}`, phase: 'drafting', chapter,
     created_at: now, updated_at: now, failures: 0, min_chars: range.minimum, max_chars: range.maximum,
     context_pack: { path: 'state/context-pack.md', sha256: digestFile(contextPath), manifest: context.manifest },
+    foreshadowing_index: { path: 'state/foreshadowing-index.json', sha256: digestFile(path.join(project, 'state', 'foreshadowing-index.json')), due: foreshadowing.due },
     canon: canonManifest(project), last_result: { pre_gate_ok: true },
   };
   atomicWrite(transactionPath, `${JSON.stringify(transaction, null, 2)}\n`);
-  return { ok: true, command: 'begin', project, chapter, transaction: transactionPath, context: contextPath, range, source_count: context.manifest.sources.length };
+  return { ok: true, command: 'begin', project, chapter, transaction: transactionPath, context: contextPath, foreshadowing_index: path.join(project, 'state', 'foreshadowing-index.json'), due_foreshadowing: foreshadowing.due, range, source_count: context.manifest.sources.length };
 }
 
 function chapterFile(project, chapter) {
@@ -167,9 +176,11 @@ function finish(projectInput, options = {}) {
     return { ok: false, command: 'finish', project, chapter, errors, warnings: post.warnings, failures: transaction.failures, canon_mutations: mutations };
   }
   const manuscript = chapterFile(project, chapter);
+  const memory = captureChapterMemory(project, { chapter });
   const event = {
     schema_version: '1.0', event: 'chapter_committed', transaction_id: transaction.transaction_id, chapter, completed_at: now,
     manuscript: path.relative(project, manuscript).replace(/\\/g, '/'), manuscript_sha256: digestFile(manuscript),
+    chapter_memory: { path: memory.relative_output, sha256: digestFile(memory.output) },
     min_chars: transaction.min_chars, max_chars: transaction.max_chars, canon_mutations: mutations,
     canon_approval: mutations.length ? { approved: true, reason } : { approved: false, reason: null }, failures_before_pass: transaction.failures,
   };

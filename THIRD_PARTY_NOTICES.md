@@ -12,6 +12,13 @@ The optional online ranking workflow calls a separately operated Firecrawl API. 
 
 The research clone of `firecrawl/cli` was used only to inspect public interface and testing conventions. No code is copied into this repository.
 
+## Openwrite
+
+The public Openwrite repository was reviewed for architectural comparison at revision `924f0cf`. Its Apache-2.0 license is retained by the upstream project. The local skill uses independent code and templates; no upstream code, prompt text, or interface assets are copied.
+
+- Repository: https://github.com/LiPu-jpg/Openwrite
+- Research record: `research/openwrite-integration-study-2026-08-09.md`
+
 ## Architecture research
 
 The following public repositories informed independent architectural comparison:

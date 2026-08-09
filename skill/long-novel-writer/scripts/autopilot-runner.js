@@ -335,14 +335,14 @@ function chapterPrompt(project, chapter, transactionResult) {
     'You are the chapter production node in a deterministic Chinese web-novel pipeline.',
     `Project root: ${project}`,
     `Write exactly chapter ${chapter}. The transaction and context pack already exist: ${transactionResult.context}.`,
-    'Read the local skill, reader contract, platform contract, chapter beat, context pack, current state, and unresolved hooks.',
+    'Read the local skill, author intent, current focus, reader contract, platform contract, chapter beat, context pack, current state, and unresolved hooks.',
     `Create one file matching manuscript/ch-${String(chapter).padStart(4, '0')}-<title>.md with complete publishable Chinese prose.`,
     'Format contract: keep one chapter title only, then plain prose separated by single blank lines; no outline headings, lists, tables, code fences, logs, or self-evaluation.',
     'Keep paragraphs mobile-first (normally under 260 Chinese characters) and split long sentences at action, reaction, dialogue, and result beats. Put purposeful dialogue in its own paragraph.',
     'Move through a visible action or choice quickly; every scene must change a goal, obstacle, relationship, clue, or resource. Do not chain paragraphs with “然后/接着/随后” as a timeline summary.',
     'End on a concrete changed situation or unanswered hook. The final file must read like publishable Tomato/Fanqie web fiction, not a plan or a chronological log.',
     'Do not put planning notes, placeholders, model commentary, or markdown tables in the manuscript. Do not edit settings or outline files during the transaction.',
-    'If continuity files need a factual update, update state/current-state.md, state/character-state.md, state/timeline.md, and state/unresolved-hooks.md only. Leave project-state updated_through for the orchestrator.',
+    'If continuity files need a factual update, update state/current-state.md, state/character-state.md, state/timeline.md, state/unresolved-hooks.md, and state/current-focus.md only. Leave project-state updated_through for the orchestrator.',
   ].join('\n');
 }
 
@@ -404,11 +404,11 @@ function runChapter(project, config, options, run) {
     try { transaction.abort(project, { reason: `finish failed: ${JSON.stringify(finished.errors)}` }); } catch (_) { /* retain the failure record */ }
     throw new CliError('CHAPTER_POST_GATE_FAILED', `Chapter ${actualChapter} post-gate failed`, { errors: finished.errors, warnings: finished.warnings });
   }
-  workflow.postHoc(project, { chapter: actualChapter, summary: `Chapter ${actualChapter} committed with ${countText(text).chinese_chars} Chinese characters.`, artifacts: `${relativePath(project, manuscript)},${qa}` });
+  workflow.postHoc(project, { chapter: actualChapter, summary: `Chapter ${actualChapter} committed with ${countText(text).chinese_chars} Chinese characters.`, artifacts: `${relativePath(project, manuscript)},${qa},${finished.event.chapter_memory.path}` });
   if (actualChapter === 1) finishWorkflowFirstChapter(project, actualChapter, manuscript, config, options);
-  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), agent_run_id: agent.run_id, quality }, word_count: words };
+  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent.run_id, quality }, word_count: words };
   updateRun(project, nextState);
-  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), word_count: words, quality });
+  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, word_count: words, quality });
   return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent.run_id };
 }
 

@@ -64,6 +64,7 @@ test('autopilot runner executes preparation and one durable chapter slice', () =
   assert.deepEqual(run.completed_prepare_nodes, ['build', 'character', 'story-plan', 'outline']);
   assert.ok(fs.existsSync(path.join(project, 'state', 'agent-runs')));
   assert.ok(JSON.parse(fs.readFileSync(path.join(project, 'state', 'workflow-run.json'), 'utf8')).status === 'done');
+  assert.ok(fs.existsSync(path.join(project, 'state', 'chapter-memory', 'ch-0001.json')));
 });
 
 test('autopilot runner preserves an explicit rejection boundary', () => {

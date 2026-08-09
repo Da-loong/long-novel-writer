@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { build, termsOf } = require('../skill/long-novel-writer/scripts/context-pack');
+const { capture } = require('../skill/long-novel-writer/scripts/chapter-memory');
 const { gate } = require('../skill/long-novel-writer/scripts/chapter-gate');
 
 const scripts = path.join(__dirname, '..', 'skill', 'long-novel-writer', 'scripts');
@@ -64,9 +65,13 @@ test('context pack retrieves relevant cold chapters and marks tiers', () => {
   const state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); state.updated_through = 4;
   fs.writeFileSync(stateFile, JSON.stringify(state, null, 2), 'utf8');
   fs.writeFileSync(path.join(project, 'state', 'current-state.md'), '# 当前状态\n\nupdated_through: 4\n', 'utf8');
+  capture(project, { chapter: 3 });
   const pack = build(project, { chapter: '5', recent: '1', retrieve: '2', query: '铜钥匙' });
   const cold = pack.manifest.sources.filter((item) => item.tier === 'cold-retrieved');
   assert.deepEqual(cold.map((item) => item.path), ['manuscript/ch-0003-old.md', 'manuscript/ch-0001-old.md']);
+  assert.equal(cold[0].representation, 'chapter-memory');
+  assert.ok(cold[0].memory_path.endsWith('ch-0003.json'));
+  assert.ok(pack.manifest.budget_report.included_chars > 0);
   assert.ok(pack.manifest.sources.some((item) => item.tier === 'hot-recent' && item.path.endsWith('ch-0004-new.md')));
 });
 
@@ -96,4 +101,18 @@ test('post gate enforces an optional maximum chapter length', () => {
   fs.writeFileSync(path.join(project, 'state', 'current-state.md'), '# 当前状态\n\nupdated_through: 1\n', 'utf8');
   const report = gate(project, { stage: 'post', chapter: '1', 'min-chars': '100', 'max-chars': '200' });
   assert.ok(report.errors.some((item) => item.code === 'CHAPTER_TOO_LONG'));
+});
+
+test('context pack keeps recent prose ahead of oversized warm canon', () => {
+  const project = initializedProject();
+  const manuscript = path.join(project, 'manuscript');
+  fs.writeFileSync(path.join(manuscript, 'ch-0001-recent.md'), '# Recent\n\n' + 'Immediate action changes the choice. '.repeat(120), 'utf8');
+  const stateFile = path.join(project, 'state', 'project-state.json');
+  const state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); state.updated_through = 1;
+  fs.writeFileSync(stateFile, JSON.stringify(state, null, 2), 'utf8');
+  fs.writeFileSync(path.join(project, 'settings', 'story-bible.md'), '# Warm canon\n\n' + 'Background. '.repeat(3000), 'utf8');
+  const pack = build(project, { chapter: '2', recent: '1', budget: '9000' });
+  assert.ok(pack.manifest.sources.some((item) => item.tier === 'hot-recent' && item.path.endsWith('ch-0001-recent.md')));
+  assert.ok(pack.manifest.budget_report.tier_chars['hot-recent'] > 0);
+  assert.ok(pack.manifest.budget_report.included_chars <= 9000);
 });
