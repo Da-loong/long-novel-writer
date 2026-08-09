@@ -326,6 +326,30 @@ an active payoff due at the accepted chapter requires literal closure evidence.
 Read `references/operations/foreshadowing-evidence-loop.md`; inspect with
 `scripts/foreshadowing-reconcile.js` using `update <PROJECT> --chapter <N>`.
 
+## Reader feedback becomes production rules
+
+Treat reader wording as evidence, then compile each active `反馈原句 → 规则化动作`
+entry from `state/feedback-ledger.md`. The transaction rebuilds
+`state/feedback-rules.json` before context assembly; drafting, repair, and cold
+reading share it. A due rule needs one literal-evidence cold-reader check, and
+a failed check keeps the chapter in revision. Read
+`references/operations/feedback-rule-loop.md`; inspect manually with
+`scripts/feedback-rules.js` using `compile <PROJECT>`.
+
+## Evidence-backed style contract
+
+When a scan, breakdown, reader report, or author sample yields a useful style
+signal, keep its source-specific material in `evidence/` and enter only the
+reusable abstraction in `evidence/derivations/style-signals.md`. The chapter
+transaction compiles adopted rows into `state/style-contract.json`, freezes its
+hash, and puts it in the critical context tier. Drafting, bounded repair, and
+cold reading consume the same contract. Every signal due for the chapter needs
+one literal-evidence `style_signal_checks` result; a `fail` keeps the chapter
+in revision. Read `references/operations/style-contract-loop.md`; inspect with
+`scripts/style-contract.js` using `compile <PROJECT>`. Do not transplant a source
+work's names, plot, distinctive wording, or private setting into the project
+style contract.
+
 Every repair starts from a snapshot, receives a deterministic repair brief, and
 is kept only when its deterministic debt or cold-reader evidence measurably
 improves. A plateau restores the prior manuscript and leaves the chapter open

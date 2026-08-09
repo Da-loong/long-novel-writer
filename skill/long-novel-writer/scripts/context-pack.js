@@ -137,7 +137,7 @@ function build(projectInput, options = {}) {
   const critical = [
     ...byPresence('critical', ['settings/reader-contract.md', 'settings/platform-contract.md', 'settings/author-intent.md']),
     ...(chapterBeat ? [candidate('critical', chapterBeat.name, chapterBeat)] : []),
-    ...byPresence('critical', ['state/current-state.md', 'state/current-focus.md', 'state/unresolved-hooks.md', 'state/foreshadowing-index.json', 'state/foreshadowing-progress.json', 'state/pacing-ledger.json', chapterCard]),
+    ...byPresence('critical', ['state/current-state.md', 'state/current-focus.md', 'state/unresolved-hooks.md', 'state/feedback-rules.json', 'state/style-contract.json', 'state/foreshadowing-index.json', 'state/foreshadowing-progress.json', 'state/pacing-ledger.json', chapterCard]),
   ];
   const hotState = [...byPresence('hot-state', ['state/character-state.md', 'state/timeline.md', 'state/workflow-run.json']), ...recentFactLedgers(project, targetChapter, recentCount)];
   const warm = byPresence('warm-core', [
@@ -176,7 +176,9 @@ function build(projectInput, options = {}) {
     const full = item.text === undefined ? readText(project, item.name) : item.text;
     const originalChars = item.originalChars ?? full.length;
     const cap = Math.min(TIER_CAPS[item.tier] || 1800, remaining);
-    const text = excerpt(full, cap);
+    // `excerpt` normally honors cap, and this final slice protects the global
+    // budget when a tiny remaining allowance cannot fit the truncation marker.
+    const text = excerpt(full, cap).slice(0, cap);
     remaining -= text.length;
     manifest.budget_report.included_chars += text.length;
     manifest.budget_report.remaining_chars = remaining;

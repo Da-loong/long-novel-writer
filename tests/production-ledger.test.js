@@ -35,6 +35,11 @@ function writeChapterAndState(project, repeats = 30) {
 
 test('begin transaction builds context and locks the chapter before drafting', () => {
   const project = preparedProject();
+  fs.appendFileSync(path.join(project, 'state', 'feedback-ledger.md'), '| 2026-08-09 | Reads like an essay. | expression | Begin with concrete action and immediate consequence. | 1 | active |\n', 'utf8');
+  fs.writeFileSync(path.join(project, 'evidence', 'derivations', 'style-signals.md'), [
+    '# Style signals', '', '| ID | Dimension | Reusable signal | Evidence | Scope | Status |', '|---|---|---|---|---|---|',
+    '| STYLE-OPEN | narrative | Open in action before exposition. | evidence/sources/source-index.md | opening | adopted |',
+  ].join('\n'), 'utf8');
   const report = begin(project, { chapter: '1', query: '林舟 账本', 'min-chars': '100', 'max-chars': '1200' });
   assert.equal(report.ok, true, JSON.stringify(report));
   assert.ok(fs.existsSync(path.join(project, 'state', 'context-pack.md')));
@@ -42,6 +47,13 @@ test('begin transaction builds context and locks the chapter before drafting', (
   assert.ok(fs.existsSync(report.chapter_card));
   const current = status(project);
   assert.equal(current.transaction.phase, 'drafting');
+  assert.equal(current.transaction.feedback_rules.rule_count, 1);
+  assert.equal(current.transaction.style_contract.signal_count, 1);
+  assert.ok(current.transaction.canon['evidence/derivations/style-signals.md']);
+  assert.ok(fs.existsSync(path.join(project, 'state', 'feedback-rules.json')));
+  assert.ok(fs.existsSync(path.join(project, 'state', 'style-contract.json')));
+  assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /feedback-rules\.json/);
+  assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /style-contract\.json/);
   assert.equal(current.has_active_transaction, true);
   assert.equal(current.next_action, 'finish --chapter 1');
 });

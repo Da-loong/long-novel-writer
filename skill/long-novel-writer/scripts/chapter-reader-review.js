@@ -9,6 +9,8 @@
 const fs = require('fs');
 const path = require('path');
 const { CliError, emitError, atomicWrite } = require('./cap-utils');
+const feedbackRules = require('./feedback-rules');
+const styleContract = require('./style-contract');
 
 const REQUIRED_SCORES = ['clarity', 'continuation', 'fanqie_fit', 'character_agency', 'payoff'];
 const REQUIRED_SCENE_EVIDENCE = ['goal', 'obstacle', 'turn', 'payoff', 'hook'];
@@ -18,6 +20,8 @@ const SCENE_STATUSES = new Set(['present', 'missing']);
 const PRESSURES = new Set(['setup', 'rising', 'high', 'release']);
 const HOOK_TYPES = new Set(['risk', 'reveal', 'choice', 'deadline', 'reversal', 'relationship', 'resource', 'mystery']);
 const PAYOFF_TYPES = new Set(['answer', 'win', 'loss', 'resource', 'relationship', 'information', 'survival', 'progress']);
+const FEEDBACK_RULE_VERDICTS = new Set(['pass', 'fail', 'not_applicable']);
+const STYLE_SIGNAL_VERDICTS = new Set(['pass', 'fail', 'not_applicable']);
 
 function argsOf(argv) {
   const args = {};
@@ -94,9 +98,61 @@ function validateRhythm(value, chapter) {
   return { pressure, hook_type: hookType, payoff_type: payoffType };
 }
 
-function validateData(data, manuscript, chapter, minScore) {
+function validateFeedbackRuleChecks(value, rules, manuscript, chapter) {
+  const expected = Array.isArray(rules) ? rules : [];
+  if (value === undefined || value === null) {
+    if (expected.length) invalid('Reader review must check every due feedback rule', { chapter, due_rule_ids: expected.map((rule) => rule.id) });
+    return [];
+  }
+  if (!Array.isArray(value)) invalid('Reader review feedback_rule_checks must be an array', { chapter });
+  const byId = new Map(expected.map((rule) => [String(rule.id), rule]));
+  const seen = new Set();
+  const checks = value.map((check, index) => {
+    if (!check || typeof check !== 'object' || Array.isArray(check)) invalid('Feedback rule check must be an object', { chapter, index });
+    const id = String(check.id || '').trim();
+    const verdict = String(check.verdict || '').trim();
+    const evidence = String(check.evidence || '').trim();
+    const note = String(check.note || '').trim();
+    if (!byId.has(id) || seen.has(id)) invalid('Feedback rule check ID must match one due rule exactly once', { chapter, index, id, due_rule_ids: [...byId.keys()] });
+    if (!FEEDBACK_RULE_VERDICTS.has(verdict) || !note || note.length > 800) invalid('Feedback rule check needs a valid verdict and concise note', { chapter, index, id, verdict });
+    if (evidence && !manuscript.body.includes(evidence)) invalid('Feedback rule evidence must be a literal manuscript excerpt', { chapter, index, id, evidence });
+    if (verdict === 'fail' && !evidence) invalid('Failed feedback rule check requires literal manuscript evidence', { chapter, index, id });
+    seen.add(id);
+    return { id, verdict, evidence, note, rule: byId.get(id).rule };
+  });
+  if (seen.size !== byId.size) invalid('Reader review is missing a due feedback rule check', { chapter, checked: [...seen], due_rule_ids: [...byId.keys()] });
+  return checks;
+}
+
+function validateStyleSignalChecks(value, signals, manuscript, chapter) {
+  const expected = Array.isArray(signals) ? signals : [];
+  if (value === undefined || value === null) {
+    if (expected.length) invalid('Reader review must check every due style signal', { chapter, due_signal_ids: expected.map((signal) => signal.id) });
+    return [];
+  }
+  if (!Array.isArray(value)) invalid('Reader review style_signal_checks must be an array', { chapter });
+  const byId = new Map(expected.map((signal) => [String(signal.id), signal]));
+  const seen = new Set();
+  const checks = value.map((check, index) => {
+    if (!check || typeof check !== 'object' || Array.isArray(check)) invalid('Style signal check must be an object', { chapter, index });
+    const id = String(check.id || '').trim();
+    const verdict = String(check.verdict || '').trim();
+    const evidence = String(check.evidence || '').trim();
+    const note = String(check.note || '').trim();
+    if (!byId.has(id) || seen.has(id)) invalid('Style signal check ID must match one due signal exactly once', { chapter, index, id, due_signal_ids: [...byId.keys()] });
+    if (!STYLE_SIGNAL_VERDICTS.has(verdict) || !note || note.length > 800) invalid('Style signal check needs a valid verdict and concise note', { chapter, index, id, verdict });
+    if (evidence && !manuscript.body.includes(evidence)) invalid('Style signal evidence must be a literal manuscript excerpt', { chapter, index, id, evidence });
+    if (verdict === 'fail' && !evidence) invalid('Failed style signal check requires literal manuscript evidence', { chapter, index, id });
+    seen.add(id);
+    return { id, verdict, evidence, note, signal: byId.get(id).signal, dimension: byId.get(id).dimension };
+  });
+  if (seen.size !== byId.size) invalid('Reader review is missing a due style signal check', { chapter, checked: [...seen], due_signal_ids: [...byId.keys()] });
+  return checks;
+}
+
+function validateData(data, manuscript, chapter, minScore, rules = [], signals = []) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) invalid('Reader review must be a JSON object', { chapter });
-  if (String(data.schema_version || '') !== '1.0') invalid('Reader review schema_version must be 1.0', { chapter, schema_version: data.schema_version });
+  if (!['1.0', '1.1', '1.2'].includes(String(data.schema_version || ''))) invalid('Reader review schema_version must be 1.0, 1.1, or 1.2', { chapter, schema_version: data.schema_version });
   if (Number(data.chapter) !== Number(chapter)) invalid('Reader review chapter does not match manuscript', { expected: Number(chapter), actual: data.chapter });
   if (!String(data.reviewer_id || '').trim()) invalid('Reader review reviewer_id is required', { chapter });
   if (!VERDICTS.has(data.verdict)) invalid('Reader review verdict must be pass or revise', { chapter, verdict: data.verdict });
@@ -108,6 +164,8 @@ function validateData(data, manuscript, chapter, minScore) {
   }
   const sceneEvidence = validateSceneEvidence(data.scene_evidence, manuscript, chapter);
   const rhythm = validateRhythm(data.rhythm, chapter);
+  const feedbackChecks = validateFeedbackRuleChecks(data.feedback_rule_checks, rules, manuscript, chapter);
+  const styleChecks = validateStyleSignalChecks(data.style_signal_checks, signals, manuscript, chapter);
   if (!Array.isArray(data.issues)) invalid('Reader review issues must be an array', { chapter });
   const seen = new Set();
   for (const [index, issue] of data.issues.entries()) {
@@ -127,15 +185,25 @@ function validateData(data, manuscript, chapter, minScore) {
   const threshold = Number.isFinite(Number(minScore)) ? Number(minScore) : 7;
   const lowScores = REQUIRED_SCORES.filter((key) => Number(data.scores[key]) < threshold);
   const criticalIssues = data.issues.filter((issue) => issue.severity === 'critical');
-  const shouldRevise = data.verdict === 'revise' || lowScores.length > 0 || criticalIssues.length > 0 || missingScene.length > 0;
+  const feedbackFailures = feedbackChecks.filter((check) => check.verdict === 'fail');
+  const styleFailures = styleChecks.filter((check) => check.verdict === 'fail');
+  if (data.verdict === 'pass' && feedbackFailures.length) invalid('Pass review cannot fail a due feedback rule', { chapter, failed_rule_ids: feedbackFailures.map((check) => check.id) });
+  if (data.verdict === 'pass' && styleFailures.length) invalid('Pass review cannot fail a due style signal', { chapter, failed_signal_ids: styleFailures.map((check) => check.id) });
+  const shouldRevise = data.verdict === 'revise' || lowScores.length > 0 || criticalIssues.length > 0 || missingScene.length > 0 || feedbackFailures.length > 0 || styleFailures.length > 0;
   return {
-    schema_version: '1.0',
+    schema_version: '1.2',
     chapter: Number(chapter),
     reviewer_id: String(data.reviewer_id).trim(),
     verdict: data.verdict,
     scores: Object.fromEntries(REQUIRED_SCORES.map((key) => [key, Number(data.scores[key])])),
     scene_evidence: sceneEvidence,
     rhythm,
+    feedback_rule_checks: feedbackChecks,
+    feedback_rules_due: rules.map((rule) => ({ id: rule.id, rule: rule.rule, verification_chapter: rule.verification_chapter })),
+    feedback_rule_failures: feedbackFailures.map((check) => check.id),
+    style_signal_checks: styleChecks,
+    style_signals_due: signals.map((signal) => ({ id: signal.id, dimension: signal.dimension, signal: signal.signal, scope: signal.scope })),
+    style_signal_failures: styleFailures.map((check) => check.id),
     issues: data.issues.map((issue) => ({ code: String(issue.code).trim(), severity: issue.severity, evidence: String(issue.evidence).trim(), repair: String(issue.repair).trim() })),
     summary: String(data.summary || '').trim(),
     review_of: manuscript.relative,
@@ -158,7 +226,9 @@ function validate(projectInput, options = {}) {
   let raw;
   try { raw = JSON.parse(fs.readFileSync(review.absolute, 'utf8').replace(/^\uFEFF/, '')); }
   catch (error) { invalid('Reader review JSON parse failed', { chapter, file: review.relative, message: error.message }); }
-  const data = validateData(raw, manuscript, chapter, options['min-score'] ?? options.minScore);
+  const rules = feedbackRules.due(project, chapter);
+  const signals = styleContract.due(project, chapter);
+  const data = validateData(raw, manuscript, chapter, options['min-score'] ?? options.minScore, rules, signals);
   atomicWrite(review.absolute, `${JSON.stringify(data, null, 2)}\n`);
   return { ok: true, project, file: review.relative, data };
 }
@@ -175,4 +245,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-reader-review'); }
 }
 
-module.exports = { REQUIRED_SCORES, REQUIRED_SCENE_EVIDENCE, PRESSURES, HOOK_TYPES, PAYOFF_TYPES, argsOf, chapterId, manuscriptOf, reviewPath, validateSceneEvidence, validateRhythm, validateData, validate, run };
+module.exports = { REQUIRED_SCORES, REQUIRED_SCENE_EVIDENCE, PRESSURES, HOOK_TYPES, PAYOFF_TYPES, FEEDBACK_RULE_VERDICTS, STYLE_SIGNAL_VERDICTS, argsOf, chapterId, manuscriptOf, reviewPath, validateSceneEvidence, validateRhythm, validateFeedbackRuleChecks, validateStyleSignalChecks, validateData, validate, run };

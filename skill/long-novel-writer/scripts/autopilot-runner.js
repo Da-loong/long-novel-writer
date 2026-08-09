@@ -22,6 +22,8 @@ const formatGate = require('./format-gate');
 const handoff = require('./handoff');
 const chapterReaderReview = require('./chapter-reader-review');
 const chapterFacts = require('./chapter-facts');
+const feedbackRules = require('./feedback-rules');
+const styleContract = require('./style-contract');
 const foreshadowingReconcile = require('./foreshadowing-reconcile');
 const pacingLedger = require('./pacing-ledger');
 
@@ -335,15 +337,19 @@ function inspectChapter(manuscript) {
 }
 
 function readerReviewPrompt(project, chapter, manuscript, output, minScore) {
+  const dueFeedbackRules = feedbackRules.due(project, chapter);
+  const dueStyleSignals = styleContract.due(project, chapter);
   return [
     `You are an independent cold reader reviewing Chinese web-novel chapter ${chapter}. Do not edit any file except the requested report.`,
     `Project root: ${project}`,
-    `Read the manuscript ${relativePath(project, manuscript)}, its binding card state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, reader contract, platform contract, context pack, and current state.`,
+    `Read the manuscript ${relativePath(project, manuscript)}, its binding card state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, reader contract, platform contract, context pack, current state, state/feedback-rules.json, and state/style-contract.json.`,
     `Write strict JSON only to ${output}.`,
-    'Schema: {"schema_version":"1.0","chapter":number,"reviewer_id":string,"verdict":"pass|revise","scores":{"clarity":0..10,"continuation":0..10,"fanqie_fit":0..10,"character_agency":0..10,"payoff":0..10},"scene_evidence":{"goal":{"status":"present|missing","evidence":string,"note":string},"obstacle":{"status":"present|missing","evidence":string,"note":string},"turn":{"status":"present|missing","evidence":string,"note":string},"payoff":{"status":"present|missing","evidence":string,"note":string},"hook":{"status":"present|missing","evidence":string,"note":string}},"rhythm":{"pressure":"setup|rising|high|release","hook_type":"risk|reveal|choice|deadline|reversal|relationship|resource|mystery","payoff_type":"answer|win|loss|resource|relationship|information|survival|progress"},"issues":[{"code":string,"severity":"critical|warning","evidence":string,"repair":string}],"summary":string}.',
+    'Schema: {"schema_version":"1.2","chapter":number,"reviewer_id":string,"verdict":"pass|revise","scores":{"clarity":0..10,"continuation":0..10,"fanqie_fit":0..10,"character_agency":0..10,"payoff":0..10},"scene_evidence":{"goal":{"status":"present|missing","evidence":string,"note":string},"obstacle":{"status":"present|missing","evidence":string,"note":string},"turn":{"status":"present|missing","evidence":string,"note":string},"payoff":{"status":"present|missing","evidence":string,"note":string},"hook":{"status":"present|missing","evidence":string,"note":string}},"feedback_rule_checks":[{"id":string,"verdict":"pass|fail|not_applicable","evidence":string,"note":string}],"style_signal_checks":[{"id":string,"verdict":"pass|fail|not_applicable","evidence":string,"note":string}],"rhythm":{"pressure":"setup|rising|high|release","hook_type":"risk|reveal|choice|deadline|reversal|relationship|resource|mystery","payoff_type":"answer|win|loss|resource|relationship|information|survival|progress"},"issues":[{"code":string,"severity":"critical|warning","evidence":string,"repair":string}],"summary":string}.',
     `Every issue evidence must be an unmodified contiguous literal quote from the manuscript body. Use verdict "revise" for a reader-blocking problem; score each dimension honestly. Scores under ${minScore}, a critical issue, or verdict revise trigger an in-transaction repair.`,
     'Calibrate strictly: 6 means a comprehensible but generic AI-like chapter; 7 means a normal publishable serial chapter; 8 requires specific, scene-grounded execution that creates a real desire to continue. Do not use 8 or above merely because the chapter has a title, dialogue, or an unexplained danger.',
-    'For scene_evidence, prove from the actual prose that the protagonist pursues a goal, encounters an obstacle, makes or suffers a turn, gives the reader a visible mini-payoff (a result, answer, gain/loss, relationship/resource shift, or actionable new fact), and leaves a concrete next-reading hook. Mark any absent item missing with a concise note. Do not treat a deferred promise or an unexplained threat as a payoff. Do not mark hook present for a generic teaser such as “the real test has just begun”; the quoted ending must carry a new actor, object, result, decision, place, deadline, or risk established by this chapter. For rhythm, label the actual chapter pressure, its primary hook type, and its primary payoff type; these labels feed the next chapter’s variety ledger. Assess reader comprehension, desire to continue, Fanqie mobile-web-fiction feel, character agency, and whether this chapter delivers a concrete payoff. Do not praise the writer, invent quotes, or put commentary outside the JSON file.',
+    `Due reader-feedback rules: ${JSON.stringify(dueFeedbackRules.map((rule) => ({ id: rule.id, rule: rule.rule, feedback: rule.feedback, layer: rule.layer })))}`,
+    `Due adopted style signals: ${JSON.stringify(dueStyleSignals.map((signal) => ({ id: signal.id, dimension: signal.dimension, signal: signal.signal, evidence: signal.evidence, scope: signal.scope })))}`,
+    'For every due reader-feedback rule and every due adopted style signal, return exactly one matching check item. A fail requires a literal prose quote and forces verdict revise; use not_applicable only when the chapter objectively has no opportunity to express that item. For scene_evidence, prove from the actual prose that the protagonist pursues a goal, encounters an obstacle, makes or suffers a turn, gives the reader a visible mini-payoff (a result, answer, gain/loss, relationship/resource shift, or actionable new fact), and leaves a concrete next-reading hook. Mark any absent item missing with a concise note. Do not treat a deferred promise or an unexplained threat as a payoff. Do not mark hook present for a generic future teaser; the quoted ending must carry a new actor, object, result, decision, place, deadline, or risk established by this chapter. For rhythm, label the actual chapter pressure, its primary hook type, and its primary payoff type; these labels feed the next chapter variety ledger. Assess reader comprehension, desire to continue, Fanqie mobile-web-fiction feel, character agency, and whether this chapter delivers a concrete payoff. Do not praise the writer, invent quotes, or put commentary outside the JSON file.',
   ].join('\n');
 }
 
@@ -361,7 +367,7 @@ function readerReviewSummary(review, round) {
   return {
     enabled: true, round, file: review.relative, run_id: review.agent.run_id, verdict: report.verdict, scores: report.scores,
     review_of: report.review_of, manuscript_sha256: report.manuscript_sha256,
-    low_scores: report.low_scores, critical_issue_count: report.critical_issue_count, scene_missing: report.scene_missing, rhythm: report.rhythm, should_revise: report.should_revise,
+    low_scores: report.low_scores, critical_issue_count: report.critical_issue_count, scene_missing: report.scene_missing, feedback_rule_failures: report.feedback_rule_failures || [], style_signal_failures: report.style_signal_failures || [], rhythm: report.rhythm, should_revise: report.should_revise,
   };
 }
 
@@ -504,7 +510,7 @@ function revisionPrompt(project, chapter, manuscript, pass, inspection, readerRe
     `You are the ${task} node for Chinese web-novel chapter ${chapter}.`,
     `Project root: ${project}`,
     `Edit only this manuscript: ${relativePath(project, manuscript)}. Keep the same filename and one chapter title.`,
-    `Read the binding chapter card at state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, the context pack, current state, and the deterministic QA findings below.`,
+    `Read the binding chapter card at state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, the context pack, current state, state/feedback-rules.json, state/style-contract.json, and the deterministic QA findings below.`,
     `QA findings: ${JSON.stringify(inspection.quality)}`,
     `Cold-reader findings: ${JSON.stringify(readerReview?.report || { enabled: false })}`,
     `Follow this binding repair brief: ${brief || 'no brief generated'}.`,
@@ -545,7 +551,7 @@ function chapterPrompt(project, chapter, transactionResult) {
     `Project root: ${project}`,
     `Write exactly chapter ${chapter}. The transaction and context pack already exist: ${transactionResult.context}.`,
     `The binding chapter card is state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json.`,
-    'Read the local skill, author intent, current focus, reader contract, platform contract, chapter card, chapter beat, context pack, current state, unresolved hooks, foreshadowing progress, and pacing ledger when present.',
+    'Read the local skill, author intent, current focus, reader contract, platform contract, chapter card, chapter beat, context pack, current state, unresolved hooks, feedback rules, style contract, foreshadowing progress, and pacing ledger when present. Every active feedback rule and adopted style signal is a reader-experience constraint, not a note to summarize. Never copy source-specific names, plots, or wording from the evidence behind a style signal.',
     `Create one file matching manuscript/ch-${String(chapter).padStart(4, '0')}-<title>.md with complete publishable Chinese prose.`,
     'Format contract: keep one chapter title only, then plain prose separated by single blank lines; no outline headings, lists, tables, code fences, logs, or self-evaluation.',
     'Keep paragraphs mobile-first (normally under 260 Chinese characters) and split long sentences at action, reaction, dialogue, and result beats. Put purposeful dialogue in its own paragraph.',

@@ -7,6 +7,8 @@ const path = require('path');
 const { CliError, emitError, atomicWrite } = require('./cap-utils');
 const { build } = require('./context-pack');
 const { write: writeForeshadowingIndex } = require('./foreshadowing-index');
+const { compile: compileFeedbackRules, OUTPUT: FEEDBACK_RULES_FILE } = require('./feedback-rules');
+const { compile: compileStyleContract, OUTPUT: STYLE_CONTRACT_FILE } = require('./style-contract');
 const { write: writeChapterCard } = require('./chapter-card');
 const { capture: captureChapterMemory } = require('./chapter-memory');
 const { gate } = require('./chapter-gate');
@@ -48,6 +50,8 @@ function canonFiles(project) {
   if (fs.existsSync(outline)) for (const name of fs.readdirSync(outline)) {
     if (/^(?:master-outline|chapter-beats|volume(?:-|_).+)\.md$/i.test(name)) files.push(`outline/${name}`);
   }
+  const styleSignals = 'evidence/derivations/style-signals.md';
+  if (fs.existsSync(path.join(project, styleSignals))) files.push(styleSignals);
   return files.sort();
 }
 
@@ -122,6 +126,8 @@ function begin(projectInput, options = {}) {
   if (chapter !== expected) throw new CliError('NEXT_CHAPTER_MISMATCH', `下一章应为 ${expected}`, { expected, chapter });
   requirePilotApproval(project, state, chapter);
   const range = numericRange(options);
+  const feedbackRules = compileFeedbackRules(project);
+  const styleContract = compileStyleContract(project);
   const foreshadowing = writeForeshadowingIndex(project, { chapter: String(chapter) });
   if (foreshadowing.errors.length) return {
     ok: false, command: 'begin', project, chapter, transaction_written: false,
@@ -144,6 +150,8 @@ function begin(projectInput, options = {}) {
     schema_version: '1.0', transaction_id: `ch-${String(chapter).padStart(4, '0')}-${Date.now()}`, phase: 'drafting', chapter,
     created_at: now, updated_at: now, failures: 0, min_chars: range.minimum, max_chars: range.maximum,
     context_pack: { path: 'state/context-pack.md', sha256: digestFile(contextPath), manifest: context.manifest },
+    feedback_rules: { path: FEEDBACK_RULES_FILE, sha256: digestFile(path.join(project, FEEDBACK_RULES_FILE)), rule_count: feedbackRules.rule_count, warnings: feedbackRules.warnings },
+    style_contract: { path: STYLE_CONTRACT_FILE, sha256: digestFile(path.join(project, STYLE_CONTRACT_FILE)), signal_count: styleContract.signal_count, warnings: styleContract.warnings },
     foreshadowing_index: { path: 'state/foreshadowing-index.json', sha256: digestFile(path.join(project, 'state', 'foreshadowing-index.json')), due: foreshadowing.due },
     chapter_card: { path: chapterCard.relative_output, sha256: digestFile(chapterCard.output), warnings: chapterCard.warnings },
     canon: canonManifest(project), last_result: { pre_gate_ok: true },
@@ -171,7 +179,7 @@ function finish(projectInput, options = {}) {
   const approval = options['approve-canon'] === true;
   const reason = typeof options.reason === 'string' ? options.reason.trim() : '';
   const errors = [];
-  if (mutations.length && !approval) errors.push({ severity: 'error', code: 'CANON_MUTATION_UNAPPROVED', file: 'settings|outline', detail: `${mutations.length} locked canon file(s) changed after begin` });
+  if (mutations.length && !approval) errors.push({ severity: 'error', code: 'CANON_MUTATION_UNAPPROVED', file: 'settings|outline|evidence/derivations', detail: `${mutations.length} locked canon file(s) changed after begin` });
   if (mutations.length && approval && !reason) errors.push({ severity: 'error', code: 'CANON_APPROVAL_REASON_MISSING', file: TRANSACTION_FILE, detail: 'use --reason to record why canon changes were approved' });
   const post = gate(project, { stage: 'post', chapter: String(chapter), 'min-chars': String(transaction.min_chars), ...(transaction.max_chars === null ? {} : { 'max-chars': String(transaction.max_chars) }) });
   errors.push(...post.errors);

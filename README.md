@@ -10,7 +10,7 @@
 
 - 版本：`0.3.0-rc.1`
 - 初始基线：`7.5/10`
-- 当前仓库评测：`8.68/10`（106 项自动测试通过，并包含一次三读者前三章盲读前向运行）
+- 当前仓库评测：`8.68/10`（112 项自动测试通过，并包含一次三读者前三章盲读前向运行）
 - 发布门槛：任务级加权评测 `>= 8.5/10`，且无 P0、P1 未关闭问题
 - 支持环境：Windows、Linux；Node.js 20+
 - GitHub：公开仓库已建立；以 `main` 分支 CI 和发布门禁作为合并基线
@@ -199,6 +199,35 @@ ledger if finalization fails.
 
 ```powershell
 node "$skill\scripts\foreshadowing-reconcile.js" update .\BOOK --chapter 12
+```
+
+## Reader feedback rule loop
+
+`state/feedback-ledger.md` retains the original reader wording and the chosen
+repair action. At every new chapter transaction, the runner compiles active,
+actionable rows into `state/feedback-rules.json`, which enters the critical
+context tier. When a rule reaches its verification chapter, the cold reader
+must return one literal-evidence pass/fail/not-applicable check; a failure keeps
+the chapter inside the existing repair loop.
+
+```powershell
+node "$skill\scripts\feedback-rules.js" compile .\BOOK
+```
+
+## Evidence-backed style contract
+
+OpenWrite's useful source-pack idea is implemented here without importing its
+application runtime: evidence stays in the project vault, while only adopted,
+reusable style signals become a compact chapter contract. Fill
+`evidence/derivations/style-signals.md`; a transaction compiles it to
+`state/style-contract.json`, freezes its hash, puts it in the critical context
+tier, and passes it to draft, repair, and cold-reader stages. Each applicable
+signal receives one literal-evidence review check; a failed signal remains
+revision debt. Source-specific names, plot points, and wording are excluded
+from the contract.
+
+```powershell
+node "$skill\scripts\style-contract.js" compile .\BOOK
 ```
 
 ## Cross-chapter pacing health
