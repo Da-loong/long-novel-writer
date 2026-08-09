@@ -32,6 +32,7 @@ const TRACKED = [
   'state/autopilot-run-ledger.jsonl',
   'state/current-focus.md',
   'state/foreshadowing-index.json',
+  'state/pacing-ledger.json',
 ];
 
 function argsOf(argv) {

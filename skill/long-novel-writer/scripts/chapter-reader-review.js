@@ -15,6 +15,9 @@ const REQUIRED_SCENE_EVIDENCE = ['goal', 'obstacle', 'turn', 'payoff', 'hook'];
 const VERDICTS = new Set(['pass', 'revise']);
 const SEVERITIES = new Set(['critical', 'warning']);
 const SCENE_STATUSES = new Set(['present', 'missing']);
+const PRESSURES = new Set(['setup', 'rising', 'high', 'release']);
+const HOOK_TYPES = new Set(['risk', 'reveal', 'choice', 'deadline', 'reversal', 'relationship', 'resource', 'mystery']);
+const PAYOFF_TYPES = new Set(['answer', 'win', 'loss', 'resource', 'relationship', 'information', 'survival', 'progress']);
 
 function argsOf(argv) {
   const args = {};
@@ -80,6 +83,17 @@ function validateSceneEvidence(value, manuscript, chapter) {
   return result;
 }
 
+function validateRhythm(value, chapter) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Reader review rhythm object is required', { chapter });
+  const pressure = String(value.pressure || '').trim();
+  const hookType = String(value.hook_type || '').trim();
+  const payoffType = String(value.payoff_type || '').trim();
+  if (!PRESSURES.has(pressure)) invalid('Reader review rhythm.pressure is invalid', { chapter, pressure });
+  if (!HOOK_TYPES.has(hookType)) invalid('Reader review rhythm.hook_type is invalid', { chapter, hook_type: hookType });
+  if (!PAYOFF_TYPES.has(payoffType)) invalid('Reader review rhythm.payoff_type is invalid', { chapter, payoff_type: payoffType });
+  return { pressure, hook_type: hookType, payoff_type: payoffType };
+}
+
 function validateData(data, manuscript, chapter, minScore) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) invalid('Reader review must be a JSON object', { chapter });
   if (String(data.schema_version || '') !== '1.0') invalid('Reader review schema_version must be 1.0', { chapter, schema_version: data.schema_version });
@@ -93,6 +107,7 @@ function validateData(data, manuscript, chapter, minScore) {
     if (!Number.isFinite(score) || score < 0 || score > 10) invalid(`Reader review score is invalid: ${key}`, { chapter, key, score: data.scores[key] });
   }
   const sceneEvidence = validateSceneEvidence(data.scene_evidence, manuscript, chapter);
+  const rhythm = validateRhythm(data.rhythm, chapter);
   if (!Array.isArray(data.issues)) invalid('Reader review issues must be an array', { chapter });
   const seen = new Set();
   for (const [index, issue] of data.issues.entries()) {
@@ -120,6 +135,7 @@ function validateData(data, manuscript, chapter, minScore) {
     verdict: data.verdict,
     scores: Object.fromEntries(REQUIRED_SCORES.map((key) => [key, Number(data.scores[key])])),
     scene_evidence: sceneEvidence,
+    rhythm,
     issues: data.issues.map((issue) => ({ code: String(issue.code).trim(), severity: issue.severity, evidence: String(issue.evidence).trim(), repair: String(issue.repair).trim() })),
     summary: String(data.summary || '').trim(),
     review_of: manuscript.relative,
@@ -159,4 +175,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-reader-review'); }
 }
 
-module.exports = { REQUIRED_SCORES, REQUIRED_SCENE_EVIDENCE, argsOf, chapterId, manuscriptOf, reviewPath, validateSceneEvidence, validateData, validate, run };
+module.exports = { REQUIRED_SCORES, REQUIRED_SCENE_EVIDENCE, PRESSURES, HOOK_TYPES, PAYOFF_TYPES, argsOf, chapterId, manuscriptOf, reviewPath, validateSceneEvidence, validateRhythm, validateData, validate, run };

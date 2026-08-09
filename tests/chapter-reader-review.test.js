@@ -32,6 +32,7 @@ function report(overrides = {}) {
       payoff: { status: 'present', evidence: '巷口的人没有散，反而把退路堵住了。', note: 'The public commitment produces a concrete, worsened position.' },
       hook: { status: 'present', evidence: '巷口的人没有散，反而把退路堵住了。', note: 'The blocked exit leaves an immediate question.' },
     },
+    rhythm: { pressure: 'rising', hook_type: 'risk', payoff_type: 'loss' },
     issues: [], summary: 'Clear scene pressure.', ...overrides,
   };
 }
@@ -61,6 +62,10 @@ test('chapter reader review rejects fabricated evidence and inconsistent pass ve
   assert.throws(() => readerReview.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_READER_REVIEW_INVALID');
   fs.writeFileSync(path.join(project, relative), JSON.stringify(report({
     issues: [{ code: 'FABRICATED', severity: 'critical', evidence: '这句话不在正文里。', repair: 'Use an actual quote.' }],
+  }), null, 2), 'utf8');
+  assert.throws(() => readerReview.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_READER_REVIEW_INVALID');
+  fs.writeFileSync(path.join(project, relative), JSON.stringify(report({
+    rhythm: { pressure: 'flat', hook_type: 'risk', payoff_type: 'loss' },
   }), null, 2), 'utf8');
   assert.throws(() => readerReview.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_READER_REVIEW_INVALID');
 });

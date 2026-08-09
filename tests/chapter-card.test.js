@@ -45,6 +45,7 @@ test('chapter card binds a beat, knowledge boundary, due foreshadowing, and scen
   card.write(project, { chapter: '1' });
   const pack = contextBuild(project, { chapter: '1', budget: '12000' });
   assert.ok(pack.manifest.sources.some((item) => item.path === 'state/chapter-cards/ch-0001.json' && item.tier === 'critical'));
+  assert.ok(pack.manifest.sources.some((item) => item.path === 'state/pacing-ledger.json' && item.tier === 'critical'));
   assert.ok(audit(project).artifacts.some((item) => item.path === 'state/chapter-cards/ch-0001.json'));
 });
 

@@ -61,6 +61,7 @@ function fakeAgent(request) {
       schema_version: '1.0', chapter, reviewer_id: 'fixture-cold-reader', verdict: 'pass',
       scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 },
       scene_evidence: sceneEvidence(chapter),
+      rhythm: { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' },
       issues: [], summary: 'The chapter has a clear pressure change and a next-reading question.',
     }, null, 2));
   } else if (request.task === 'polish') {
@@ -81,6 +82,9 @@ test('autopilot runner executes preparation and one durable chapter slice', () =
   const state = JSON.parse(fs.readFileSync(path.join(project, 'state', 'project-state.json'), 'utf8'));
   assert.equal(state.updated_through, 1);
   assert.ok(state.word_count >= 1200);
+  const pacing = JSON.parse(fs.readFileSync(path.join(project, 'state', 'pacing-ledger.json'), 'utf8'));
+  assert.equal(pacing.entries.length, 1);
+  assert.deepEqual(pacing.entries[0].rhythm, { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' });
   const run = JSON.parse(fs.readFileSync(path.join(project, 'state', 'autopilot-run.json'), 'utf8'));
   assert.deepEqual(run.completed_prepare_nodes, ['build', 'character', 'story-plan', 'outline']);
   assert.ok(fs.existsSync(path.join(project, 'state', 'agent-runs')));
@@ -168,12 +172,13 @@ test('cold-reader evidence triggers an in-transaction repair even when determini
           schema_version: '1.0', chapter, reviewer_id: 'fixture-cold-reader', verdict: 'revise',
           scores: { clarity: 6, continuation: 6, fanqie_fit: 6, character_agency: 8, payoff: 6 },
           scene_evidence: sceneEvidence(chapter),
+          rhythm: { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' },
           issues: [{ code: 'FLAT_TENSION', severity: 'warning', evidence: '林越把第1张欠条拍在柜台上。', repair: 'Make the consequence of the choice sharper in the next draft.' }],
           summary: 'The scene is understandable but lacks enough immediate pull.',
         }
         : {
           schema_version: '1.0', chapter, reviewer_id: 'fixture-cold-reader', verdict: 'pass',
-          scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 }, scene_evidence: sceneEvidence(chapter), issues: [], summary: 'Repair addressed the reader concern.',
+          scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 }, scene_evidence: sceneEvidence(chapter), rhythm: { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' }, issues: [], summary: 'Repair addressed the reader concern.',
         };
       const file = path.join(request.project, output);
       fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -218,6 +223,7 @@ test('unimproved cold-reader repair is discarded and leaves the previous draft a
         schema_version: '1.0', chapter, reviewer_id: 'plateau-reader', verdict: 'revise',
         scores: { clarity: 6, continuation: 6, fanqie_fit: 6, character_agency: 8, payoff: 6 },
         scene_evidence: sceneEvidence(chapter),
+        rhythm: { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' },
         issues: [{ code: 'FLAT_TENSION', severity: 'warning', evidence: '林越把第1张欠条拍在柜台上。', repair: 'Create a sharper consequence.' }],
         summary: 'The candidate remains too generic.',
       }, null, 2), 'utf8');

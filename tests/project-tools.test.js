@@ -44,6 +44,7 @@ test('initializer creates evidence and supervision control surfaces', () => {
     'settings/context-policy.json',
     'state/current-focus.md',
     'state/foreshadowing-index.json',
+    'state/pacing-ledger.json',
     'settings/workflow-policy.json',
     'settings/agent-runner.json',
     'state/workflow-run.json',

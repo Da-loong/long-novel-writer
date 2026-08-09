@@ -41,6 +41,7 @@ function templates(meta) {
     'state/current-state.md': '# 当前状态\n\nupdated_through: 0\n\n尚未写入正文。\n',
     'state/current-focus.md': md('\u5f53\u524d\u521b\u4f5c\u7126\u70b9', [['\u5f53\u524d\u5377\u76ee\u6807', pending], ['\u8fd9\u4e00\u9636\u6bb5\u5fc5\u987b\u4ea4\u4ed8', pending], ['\u8fd9\u4e00\u9636\u6bb5\u4fdd\u62a4\u7684\u8bbe\u5b9a', pending], ['\u4e0b\u4e00\u4e2a\u7ae0\u8282\u7684\u91cd\u70b9', pending]]),
     'state/foreshadowing-index.json': `${JSON.stringify({ schema_version: '1.0', generated_at: null, source: 'outline/foreshadowing-ledger.md', target_chapter: null, nodes: [], edges: [], due: [], errors: [], warnings: [] }, null, 2)}\n`,
+    'state/pacing-ledger.json': `${JSON.stringify({ schema_version: '1.0', updated_at: null, updated_through: 0, entries: [], audit: { warnings: [], recommendations: [] } }, null, 2)}\n`,
     'state/character-state.md': '# 人物状态\n\n| 人物 | 地点 | 身体 | 情绪 | 资源 | 已知信息 | 关系变化 | 截止章 |\n|---|---|---|---|---|---|---|---:|\n',
     'state/timeline.md': '# 时间线\n\n| 时间 | 事件 | 地点 | 参与者 | 证据章节 |\n|---|---|---|---|---|\n',
     'state/unresolved-hooks.md': '# 未解钩子\n\n| ID | 首次出现章 | 问题 | 读者预期 | 回收窗口 | 状态 |\n|---|---:|---|---|---|---|\n',

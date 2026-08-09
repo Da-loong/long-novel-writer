@@ -310,3 +310,13 @@ Every repair starts from a snapshot, receives a deterministic repair brief, and
 is kept only when its deterministic debt or cold-reader evidence measurably
 improves. A plateau restores the prior manuscript and leaves the chapter open
 for a fresh production attempt; snapshots live under `state/chapter-revisions/`.
+
+## Cross-chapter pacing health
+
+Accepted cold-reader reports also classify actual pressure, hook type, and
+payoff type. `autopilot-runner.js` writes the hash-bound history to
+`state/pacing-ledger.json` and carries its warnings into the next context pack.
+It flags repeated hook/reward shapes, sustained high pressure, and missing
+release beats without forcing a formula onto the novel. Read
+`references/operations/pacing-ledger.md`; inspect with
+`scripts/pacing-ledger.js` using `audit <PROJECT>`.
