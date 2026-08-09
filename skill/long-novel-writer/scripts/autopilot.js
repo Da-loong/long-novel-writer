@@ -122,9 +122,11 @@ function pilotPass(projectInput, options = {}) {
   const audit = validateEvidence(project, evidence);
   if (!audit.ok) throw new CliError('AUTOPILOT_EVIDENCE_INVALID', '自动盲评缺少可核验目标锚点或原文证据', { evidence: evidencePath, errors: audit.errors });
   const reports = Array.isArray(evidence.reader_reports) ? evidence.reader_reports : [];
+  const panelModels = [...new Set(reports.map((report) => String(report?.model_id || '').trim()).filter(Boolean))];
   const checks = {
     reviewed_through: Number(evidence.reviewed_through || 0) >= 3,
     independent_readers: reports.length >= 3 && Number(evidence.independent_readers || reports.length) >= 3,
+    cross_model: panelModels.length >= 2 && Number(evidence.distinct_models || panelModels.length) >= 2,
     reader_score: Number(evidence.reader_score || 0) >= 8,
     platform_fit: Number(evidence.platform_fit || 0) >= 8,
     comprehension: Number(evidence.comprehension_pass_rate || 0) >= 0.8,
@@ -135,7 +137,7 @@ function pilotPass(projectInput, options = {}) {
   const failures = Object.entries(checks).filter(([, passed]) => !passed).map(([key]) => key);
   if (failures.length) throw new CliError('AUTOPILOT_PILOT_FAILED', '自动盲评未达到放行阈值', { evidence: evidencePath, failures, checks });
   const now = new Date().toISOString();
-  const verdict = { schema_version: '1.0', status: 'approved', auto_confirmed: true, reviewed_through: Number(evidence.reviewed_through), reviewer: 'autopilot-panel', reason: evidence.reason || '独立盲评达到自动放行阈值', score: Number(evidence.reader_score), platform_fit: Number(evidence.platform_fit), evidence: path.relative(project, evidencePath).replace(/\\/g, '/'), audit, checks, updated_at: now };
+  const verdict = { schema_version: '1.1', status: 'approved', auto_confirmed: true, reviewed_through: Number(evidence.reviewed_through), reviewer: 'autopilot-cross-model-panel', panel_models: panelModels, reason: evidence.reason || 'Cross-model blind review reached the automatic release threshold.', score: Number(evidence.reader_score), platform_fit: Number(evidence.platform_fit), evidence: path.relative(project, evidencePath).replace(/\\/g, '/'), audit, checks, updated_at: now };
   atomicWrite(path.join(project, PILOT_FILE), `${JSON.stringify(verdict, null, 2)}\n`);
   const next = { ...autopilot, phase: 'production', status: 'running', updated_at: now, revision_round: 0 };
   writeAutopilot(project, next);

@@ -25,8 +25,21 @@ test('Firecrawl dry run exposes request without consuming credits', () => {
   assert.equal(result.status, 0, result.stderr);
   const report = JSON.parse(result.stdout);
   assert.equal(report.dryRun, true);
-  assert.match(report.request.url, /fanqienovel\.com/);
-  assert.equal(report.request.formats[0].type, 'json');
+  assert.match(report.requests[0].url, /fanqienovel\.com/);
+  assert.equal(report.requests[0].formats[0].type, 'json');
+});
+
+test('rank scan falls back to a fresh cache after online acquisition failures', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'lnw-rank-cache-'));
+  const cache = path.join(temp, 'cache.json');
+  fs.writeFileSync(cache, JSON.stringify({ captured_at: new Date().toISOString(), items: [{ rank: 1, title: '缓存书', author: '缓存作者', source: 'cached' }] }), 'utf8');
+  const result = spawnSync(process.execPath, [script, '--platform', 'fanqie', '--url', 'https://invalid.example/rank', '--cache', cache, '--retry', '0'], {
+    env: { ...process.env, FIRECRAWL_API_URL: 'http://127.0.0.1:1' }, encoding: 'utf8', timeout: 10000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const snapshot = JSON.parse(result.stdout);
+  assert.equal(snapshot.acquisition.mode, 'cache_fallback');
+  assert.equal(snapshot.items[0].title, '缓存书');
 });
 
 test('Firecrawl self-host response becomes a normalized snapshot', async (t) => {

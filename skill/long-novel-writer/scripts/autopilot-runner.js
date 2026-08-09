@@ -47,6 +47,7 @@ const DEFAULTS = {
   chapter_min_chars: 1200,
   chapter_max_chars: null,
   panel_readers: 3,
+  panel_models: [],
   panel_attempts: 2,
   review_interval: 10,
   chapter_revision_passes: 2,
@@ -122,6 +123,11 @@ function configOf(project, options = {}) {
     chapter_min_chars: Math.max(1, Math.floor(number('min-chars', number('chapter_min_chars', DEFAULTS.chapter_min_chars)))),
     chapter_max_chars: options['max-chars'] ?? stored.chapter_max_chars ?? DEFAULTS.chapter_max_chars,
     panel_readers: Math.max(3, Math.floor(number('panel-readers', number('panel_readers', DEFAULTS.panel_readers)))),
+    panel_models: (() => {
+      const value = options['panel-models'] ?? options.panel_models ?? stored.panel_models ?? DEFAULTS.panel_models;
+      const values = Array.isArray(value) ? value : String(value || '').split(',');
+      return [...new Set(values.map((item) => String(item || '').trim()).filter(Boolean))];
+    })(),
     panel_attempts: Math.max(1, Math.floor(number('panel-attempts', number('panel_attempts', DEFAULTS.panel_attempts)))),
     review_interval: Math.max(1, Math.floor(number('review-interval', number('review_interval', DEFAULTS.review_interval)))),
     chapter_revision_passes: Math.max(0, Math.floor(number('chapter-revision-passes', number('chapter_revision_passes', DEFAULTS.chapter_revision_passes)))),
@@ -220,7 +226,8 @@ function invokeAgent(project, task, prompt, config, options = {}) {
   const stdout = String(result?.stdout || '');
   const stderr = String(result?.stderr || '');
   const normalized = {
-    schema_version: '1.1', run_id: runId, task, prompt_file: relativePath(project, promptFile),
+    schema_version: '1.2', run_id: runId, task, prompt_file: relativePath(project, promptFile),
+    agent_command: config.agent_command, model: config.model || null,
     prompt_sha256: crypto.createHash('sha256').update(prompt.trim(), 'utf8').digest('hex'), prompt_chars: prompt.trim().length,
     exit_code: Number(result?.exitCode ?? result?.status ?? 1), signal: result?.signal || null,
     duration_ms: Date.now() - started, stdout, stderr, stdout_chars: stdout.length, stderr_chars: stderr.length,
@@ -371,7 +378,7 @@ function ensureQa(project, chapter, metrics, ai, deg, format, revisionPasses = [
 
 function criticalQuality(metrics, ai, deg, format) {
   const aiCount = Number(ai?.findings?.length || 0);
-  const degCount = Number(deg?.findings?.filter((finding) => finding.rule !== '绡囧箙寮傚父').length || 0);
+  const degCount = Number(deg?.findings?.filter((finding) => finding.rule !== '缁″洤绠欏鍌氱埗').length || 0);
   const hardWarnings = (metrics?.warnings || []).filter((warning) => ['OPENING_ACTION_DELAY', 'EXPOSITION_BLOCK'].includes(warning.code));
   const formatErrors = Number(format?.errors?.length || 0);
   return { ok: aiCount === 0 && degCount === 0 && formatErrors === 0 && hardWarnings.length === 0, ai_count: aiCount, degeneration_count: degCount, format_errors: formatErrors, hard_warnings: hardWarnings };
@@ -549,7 +556,7 @@ function buildRevisionBrief(project, chapter, pass, inspection, review) {
   const hookAgendaProblems = (report?.hook_agenda_checks || []).filter((check) => check.verdict === 'fail').map((check) => `- Must-advance hook ${check.id}: ${check.note} Evidence: "${check.evidence}". Give this exact promise a concrete on-page escalation, evidence, consequence, or payoff.`);
   const obligationProblems = (report?.chapter_obligation_checks || []).filter((check) => check.verdict === 'fail').map((check) => `- Binding chapter obligation ${check.id}: ${check.obligation}. ${check.note} Evidence: "${check.evidence}". Deliver this exact assigned beat on page rather than substituting a generic scene function.`);
   const readerProblems = issues.length
-    ? issues.map((issue, index) => `${index + 1}. [${issue.severity}/${issue.code}] Evidence: “${issue.evidence}”\n   Repair: ${issue.repair}`).join('\n')
+    ? issues.map((issue, index) => `${index + 1}. [${issue.severity}/${issue.code}] Evidence: "${issue.evidence}"\n   Repair: ${issue.repair}`).join('\n')
     : (report?.low_scores || []).map((key, index) => `${index + 1}. Raise ${key}; the cold reader scored it ${report.scores[key]}/10.`).join('\n') || 'No reader issue was supplied; repair the deterministic findings only.';
   const deterministic = [
     `AI-pattern findings: ${inspection.quality.ai_count}`,
@@ -634,7 +641,7 @@ function chapterPrompt(project, chapter, transactionResult) {
     `Create one file matching manuscript/ch-${String(chapter).padStart(4, '0')}-<title>.md with complete publishable Chinese prose.`,
     'Format contract: keep one chapter title only, then plain prose separated by single blank lines; no outline headings, lists, tables, code fences, logs, or self-evaluation.',
     'Keep paragraphs mobile-first (normally under 260 Chinese characters) and split long sentences at action, reaction, dialogue, and result beats. Put purposeful dialogue in its own paragraph.',
-    'Move through a visible action or choice quickly; every scene must change a goal, obstacle, relationship, clue, or resource. Before the end, pay the reader with one visible result, answer, gain/loss, relationship/resource shift, or actionable new fact; a threat postponed to the next chapter is not enough. Respect pacing-ledger warnings by varying the primary hook or payoff shape while preserving the binding chapter beat. Treat state/quality-guidance.json as a targeted craft diagnosis: improve only its named weak reader-experience dimension through this chapter\'s assigned scene, but never override canon or manufacture unrelated plot. Treat state/repair-debt-guidance.json as a process diagnosis: prevent its named recurring debt in the first draft and keep any later repair on that exact target, rather than compensating with unrelated prose changes. When state/hook-agenda.json names must_advance or stale_debt, visibly move one named hook by escalation, evidence, consequence, or payoff before opening sibling mysteries; a generic restatement does not count. Treat state/resource-window.json as hard continuity: do not invent possession, availability, consumption, or access that conflicts with an evidence-bound resource record. Do not chain paragraphs with “然后/接着/随后” as a timeline summary.',
+    'Move through a visible action or choice quickly; every scene must change a goal, obstacle, relationship, clue, or resource. Before the end, pay the reader with one visible result, answer, gain/loss, relationship/resource shift, or actionable new fact; a threat postponed to the next chapter is not enough. Respect pacing-ledger warnings by varying the primary hook or payoff shape while preserving the binding chapter beat. Treat state/quality-guidance.json as a targeted craft diagnosis: improve only its named weak reader-experience dimension through this chapter\'s assigned scene, but never override canon or manufacture unrelated plot. Treat state/repair-debt-guidance.json as a process diagnosis: prevent its named recurring debt in the first draft and keep any later repair on that exact target, rather than compensating with unrelated prose changes. When state/hook-agenda.json names must_advance or stale_debt, visibly move one named hook by escalation, evidence, consequence, or payoff before opening sibling mysteries; a generic restatement does not count. Treat state/resource-window.json as hard continuity: do not invent possession, availability, consumption, or access that conflicts with an evidence-bound resource record. Do not chain paragraphs with 鈥滅劧鍚?鎺ョ潃/闅忓悗鈥?as a timeline summary.',
     'End on a concrete changed situation or unanswered hook. The final file must read like publishable Tomato/Fanqie web fiction, not a plan or a chronological log.',
     'Do not put planning notes, placeholders, model commentary, or markdown tables in the manuscript. Do not edit settings or outline files during the transaction.',
     'If continuity files need a factual update, update state/current-state.md, state/character-state.md, state/timeline.md, state/unresolved-hooks.md, and state/current-focus.md only. Leave project-state updated_through for the orchestrator.',
@@ -824,14 +831,17 @@ function parsePanelFile(project, file, stdout = '') {
 
 function runPanel(project, config, options, run) {
   const reports = [];
+  const models = config.panel_models;
+  if (models.length < 2) throw new CliError('PANEL_CROSS_MODEL_REQUIRED', 'Golden-three release requires at least two distinct panel_models', { panel_models: models, next: 'Set settings/agent-runner.json panel_models to at least two model identifiers.' });
   const directory = path.join(project, 'analysis', 'autopilot-panel');
   fs.mkdirSync(directory, { recursive: true });
   const attempt = Number(run.panel?.attempts || 0) + 1;
   for (let index = 1; index <= config.panel_readers; index++) {
     const readerId = `R${index}`;
+    const model = models[(index - 1) % models.length];
     const relative = `analysis/autopilot-panel/${readerId}-attempt-${attempt}.json`;
-    const result = invokeAgent(project, `panel-${readerId}`, panelPrompt(project, readerId, path.join(project, relative)), config, options);
-    reports.push(parsePanelFile(project, relative, result.stdout));
+    const result = invokeAgent(project, `panel-${readerId}`, panelPrompt(project, readerId, path.join(project, relative)), { ...config, model }, options);
+    reports.push({ ...parsePanelFile(project, relative, result.stdout), model_id: model, transcript: relativePath(project, result.transcript) });
   }
   const anchors = [
     { id: 'opening-hook', target: 'opening hook is understood by a cold reader', status: 'fulfilled', evidence: [quoteFromChapter(project, 1)] },
@@ -841,13 +851,13 @@ function runPanel(project, config, options, run) {
   const comprehension = reports.filter((item) => Number(item.comprehension_0_to_10) >= 7).length / reports.length;
   const continuation = reports.filter((item) => item.would_continue === true).length / reports.length;
   const evidence = {
-    schema_version: '1.0', reviewed_through: 3, independent_readers: reports.length,
+    schema_version: '1.1', reviewed_through: 3, independent_readers: reports.length, distinct_models: [...new Set(reports.map((item) => item.model_id))].length,
     reader_score: Number((average('continuation_0_to_10') * 0.4 + average('platform_fit_0_to_10') * 0.25 + average('comprehension_0_to_10') * 0.2 + average('prose_naturalness_0_to_10') * 0.15).toFixed(2)),
     platform_fit: Number(average('platform_fit_0_to_10').toFixed(2)), comprehension_pass_rate: Number(comprehension.toFixed(2)), continuation_rate: Number(continuation.toFixed(2)),
     critical_failures: 0, target_anchors: anchors,
-    reader_reports: reports.map((item) => ({ summary: String(item.reason || item.strongest_hook || '').slice(0, 1000), confusions: Array.isArray(item.confusions) ? item.confusions : [], continue_next: item.would_continue })),
+    reader_reports: reports.map((item) => ({ reader_id: item.reader_id || '', model_id: item.model_id, transcript: item.transcript, summary: String(item.reason || item.strongest_hook || '').slice(0, 1000), confusions: Array.isArray(item.confusions) ? item.confusions : [], continue_next: item.would_continue })),
     findings: [], raw_reports: reports,
-    reason: 'Three independent cold-reader sessions completed by the autopilot panel.', updated_at: new Date().toISOString(),
+    reason: 'Cross-model cold-reader panel completed by the autopilot.', updated_at: new Date().toISOString(),
   };
   const evidenceFile = 'analysis/autopilot-pilot.json';
   writeJson(path.join(project, evidenceFile), evidence);
