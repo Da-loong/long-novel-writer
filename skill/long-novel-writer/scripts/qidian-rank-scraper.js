@@ -1,3 +1,3 @@
 #!/usr/bin/env node
 'use strict';
-require('./cap-utils').rankCli('起点榜单导出');
+require('./rank-adapter').run('qidian').catch((error) => { process.stderr.write(JSON.stringify({ ok: false, code: error.code || 'RANK_SCAN_ERROR', message: error.message }) + '\n'); process.exitCode = 1; });

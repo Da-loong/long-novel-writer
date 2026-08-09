@@ -82,6 +82,7 @@ function templates(meta) {
     'state/chapter-transaction.json': `${JSON.stringify({ schema_version: '1.0', phase: 'idle', chapter: null, updated_at: null }, null, 2)}\n`,
     'state/workflow-run.json': `${JSON.stringify({ schema_version: '1.0', status: 'idle', task_id: null, workflow_id: 'book-production', current_node: null, completed_nodes: [], checkpoints: [], updated_at: null }, null, 2)}\n`,
     'state/autopilot-run.json': `${JSON.stringify({ schema_version: '1.0', status: 'idle', phase: 'prepare', target_words: Number(meta.target_words || 1000000), current_chapter: 0, completed_prepare_nodes: [], panel: { status: 'pending', attempts: 0 }, attempts: {}, updated_at: null }, null, 2)}\n`,
+    'state/production-runtime.json': `${JSON.stringify({ schema_version: '1.0', status: 'idle', phase: 'idle', runner: null, workflow: null, pilot: null, updated_at: null, rule: 'Primary orchestration envelope. autopilot-run.json, workflow-run.json, and autopilot-pilot.json are compatibility projections.' }, null, 2)}\n`,
     'state/pilot-verdict.json': `${JSON.stringify({ schema_version: '1.0', status: 'pending', reviewed_through: 0, reviewer: null, reason: null, updated_at: null }, null, 2)}\n`,
     'state/production-ledger.jsonl': '',
     'state/workflow-ledger.jsonl': '',

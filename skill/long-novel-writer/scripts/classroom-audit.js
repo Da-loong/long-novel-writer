@@ -27,6 +27,10 @@ function audit(projectInput) {
   if (!projectInput) throw new CliError('USAGE', 'Usage: node classroom-audit.js <project>');
   const project = path.resolve(projectInput);
   if (!fs.existsSync(project)) throw new CliError('PATH_NOT_FOUND', `Project directory not found: ${project}`, { project });
+  const args = arguments[1] || {};
+  const state = JSON.parse(read(path.join(project, 'state', 'project-state.json')) || '{}');
+  const interval = Math.max(10, Number(args.interval || 50));
+  if (!args.force && Number(state.updated_through || 0) > 0 && Number(state.updated_through || 0) % interval !== 0) return { schema_version: '1.1', project, skipped: true, cadence: 'volume_low_frequency', interval, next_due_chapter: Math.ceil(Number(state.updated_through || 0) / interval) * interval };
   const missing = REQUIRED_PROJECT_FILES.filter((relative) => !fs.existsSync(path.join(project, relative)));
   const source = read(path.join(project, 'evidence/sources/writer-classroom-index.md'));
   const map = read(path.join(project, 'settings/platform-classroom-map.md'));
@@ -53,7 +57,7 @@ function audit(projectInput) {
 
 function run(argv = process.argv.slice(2)) {
   const args = argsOf(argv);
-  const report = audit(args.project);
+  const report = audit(args.project, args);
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   return report;
 }

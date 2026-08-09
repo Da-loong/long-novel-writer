@@ -36,6 +36,7 @@ const fanqieStyleCard = require('./fanqie-style-card');
 const longformHealth = require('./longform-health');
 const qualityBrief = require('./quality-brief');
 const preproductionGate = require('./preproduction-gate');
+const runtimeState = require('./runtime-state');
 
 const RUN_FILE = 'state/autopilot-run.json';
 const LEDGER_FILE = 'state/autopilot-run-ledger.jsonl';
@@ -152,7 +153,7 @@ function configOf(project, options = {}) {
 function stateOf(project) { return readJson(path.join(project, 'state', 'project-state.json')); }
 function autoState(project) { return readJson(path.join(project, 'state', 'autopilot.json'), {}); }
 function pilotState(project) { return readJson(path.join(project, 'state', 'autopilot-pilot.json'), {}); }
-function runState(project) { return readJson(path.join(project, RUN_FILE)); }
+function runState(project) { return runtimeState.read(project).runner || readJson(path.join(project, RUN_FILE)); }
 
 function defaultRun(project, config) {
   const state = stateOf(project);
@@ -180,6 +181,7 @@ function updateRun(project, update) {
   const current = runState(project) || defaultRun(project, configOf(project));
   const next = { ...current, ...update, updated_at: new Date().toISOString() };
   writeJson(path.join(project, RUN_FILE), next);
+  runtimeState.sync(project, next);
   return next;
 }
 
@@ -1012,7 +1014,7 @@ function start(projectInput, options = {}) {
   const flow = workflow.status(project);
   if (flow.status === 'idle') workflow.start(project, { runner: 'autopilot-runner' });
   const initial = { ...defaultRun(project, config), status: 'running', phase: 'prepare', created_at: new Date().toISOString(), config };
-  writeJson(path.join(project, RUN_FILE), initial);
+  updateRun(project, initial);
   event(project, { type: 'runner_started', target_words: initial.target_words, agent_command: config.agent_command, model: config.model || null });
   return { ok: true, command: 'start', project, run: initial, workflow: workflow.status(project) };
 }
