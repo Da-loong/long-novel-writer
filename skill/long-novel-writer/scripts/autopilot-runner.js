@@ -217,10 +217,13 @@ function invokeAgent(project, task, prompt, config, options = {}) {
   } catch (error) {
     result = { exitCode: 1, stdout: '', stderr: error.message };
   }
+  const stdout = String(result?.stdout || '');
+  const stderr = String(result?.stderr || '');
   const normalized = {
-    schema_version: '1.0', run_id: runId, task, prompt_file: relativePath(project, promptFile),
+    schema_version: '1.1', run_id: runId, task, prompt_file: relativePath(project, promptFile),
+    prompt_sha256: crypto.createHash('sha256').update(prompt.trim(), 'utf8').digest('hex'), prompt_chars: prompt.trim().length,
     exit_code: Number(result?.exitCode ?? result?.status ?? 1), signal: result?.signal || null,
-    duration_ms: Date.now() - started, stdout: String(result?.stdout || ''), stderr: String(result?.stderr || ''),
+    duration_ms: Date.now() - started, stdout, stderr, stdout_chars: stdout.length, stderr_chars: stderr.length,
     artifacts: [], created_at: new Date().toISOString(),
   };
   atomicWrite(transcriptFile, `${JSON.stringify(normalized, null, 2)}\n`);

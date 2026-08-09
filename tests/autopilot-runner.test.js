@@ -114,6 +114,9 @@ test('autopilot runner executes preparation and one durable chapter slice', () =
   const state = JSON.parse(fs.readFileSync(path.join(project, 'state', 'project-state.json'), 'utf8'));
   assert.equal(state.updated_through, 1);
   assert.ok(state.word_count >= 1200);
+  const agentRun = JSON.parse(fs.readFileSync(fs.readdirSync(path.join(project, 'state', 'agent-runs')).map((name) => path.join(project, 'state', 'agent-runs', name)).find((file) => file.endsWith('.json')), 'utf8'));
+  assert.match(agentRun.prompt_sha256, /^[a-f0-9]{64}$/);
+  assert.ok(agentRun.prompt_chars > 0);
   const pacing = JSON.parse(fs.readFileSync(path.join(project, 'state', 'pacing-ledger.json'), 'utf8'));
   assert.equal(pacing.entries.length, 1);
   assert.deepEqual(pacing.entries[0].rhythm, { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' });
