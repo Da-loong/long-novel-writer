@@ -46,8 +46,9 @@ const DEFAULTS = {
   max_attempts: 3,
   chapter_min_chars: 1200,
   chapter_max_chars: null,
-  panel_readers: 3,
+  panel_readers: 5,
   panel_models: [],
+  panel_roles: ['fanqie-editor', 'serial-reader', 'webnovel-structure', 'prose-editor', 'continuity-auditor'],
   panel_attempts: 2,
   review_interval: 10,
   chapter_revision_passes: 2,
@@ -125,6 +126,11 @@ function configOf(project, options = {}) {
     panel_readers: Math.max(3, Math.floor(number('panel-readers', number('panel_readers', DEFAULTS.panel_readers)))),
     panel_models: (() => {
       const value = options['panel-models'] ?? options.panel_models ?? stored.panel_models ?? DEFAULTS.panel_models;
+      const values = Array.isArray(value) ? value : String(value || '').split(',');
+      return [...new Set(values.map((item) => String(item || '').trim()).filter(Boolean))];
+    })(),
+    panel_roles: (() => {
+      const value = options['panel-roles'] ?? options.panel_roles ?? stored.panel_roles ?? DEFAULTS.panel_roles;
       const values = Array.isArray(value) ? value : String(value || '').split(',');
       return [...new Set(values.map((item) => String(item || '').trim()).filter(Boolean))];
     })(),
@@ -808,11 +814,12 @@ function quoteFromChapter(project, chapter) {
   return { file: relativePath(project, file), quote: quote.slice(0, 80) };
 }
 
-function panelPrompt(project, readerId, output) {
+function panelPrompt(project, readerId, roleId, output) {
   return [
-    'Act as an independent cold reader. Do not edit the manuscript or any project canon.',
+    `Act only as the independent reviewer defined in ${project}/settings/reviewers/${roleId}.md.`,
+    'Do not edit the manuscript or any project canon. Do not read other panel reports or their prompts.',
     `Read chapters 1-3 under ${project}/manuscript and write strict JSON to ${output}.`,
-    'Required keys: reader_id, comprehension_0_to_10, continuation_0_to_10, platform_fit_0_to_10, prose_naturalness_0_to_10, would_continue (boolean), one_sentence_pitch, confusions (array), strongest_hook, weakest_point, reason.',
+    `Required keys: reader_id, role_id (must be "${roleId}"), comprehension_0_to_10, continuation_0_to_10, platform_fit_0_to_10, prose_naturalness_0_to_10, would_continue (boolean), one_sentence_pitch, confusions (array), strongest_hook, weakest_point, veto (boolean), veto_reason, reason.`,
     'Score the reader experience, not the writing agent. Mention concrete confusion and continuation evidence. Output JSON only in the file.',
   ].join('\n');
 }
@@ -831,17 +838,25 @@ function parsePanelFile(project, file, stdout = '') {
 
 function runPanel(project, config, options, run) {
   const reports = [];
-  const models = config.panel_models;
-  if (models.length < 2) throw new CliError('PANEL_CROSS_MODEL_REQUIRED', 'Golden-three release requires at least two distinct panel_models', { panel_models: models, next: 'Set settings/agent-runner.json panel_models to at least two model identifiers.' });
+  const models = config.panel_models.length ? config.panel_models : (config.model ? [config.model] : []);
+  const roles = config.panel_roles;
+  if (!models.length) throw new CliError('PANEL_MODEL_REQUIRED', 'Golden-three review requires model or panel_models', { next: 'Set settings/agent-runner.json model to the writing-agent model identifier.' });
+  if (roles.length < 3) throw new CliError('PANEL_ROLE_REQUIRED', 'Golden-three review requires at least three distinct panel_roles', { panel_roles: roles });
+  const reviewMode = models.length >= 2 ? 'cross_model' : 'single_model_multi_role';
+  for (const roleId of roles) {
+    const protocol = path.join(project, 'settings', 'reviewers', `${roleId}.md`);
+    if (!fs.existsSync(protocol)) throw new CliError('PANEL_ROLE_PROTOCOL_MISSING', `Missing reviewer protocol: ${roleId}`, { role_id: roleId, protocol: relativePath(project, protocol) });
+  }
   const directory = path.join(project, 'analysis', 'autopilot-panel');
   fs.mkdirSync(directory, { recursive: true });
   const attempt = Number(run.panel?.attempts || 0) + 1;
   for (let index = 1; index <= config.panel_readers; index++) {
-    const readerId = `R${index}`;
+    const roleId = roles[(index - 1) % roles.length];
+    const readerId = `R${index}-${roleId}`;
     const model = models[(index - 1) % models.length];
     const relative = `analysis/autopilot-panel/${readerId}-attempt-${attempt}.json`;
-    const result = invokeAgent(project, `panel-${readerId}`, panelPrompt(project, readerId, path.join(project, relative)), { ...config, model }, options);
-    reports.push({ ...parsePanelFile(project, relative, result.stdout), model_id: model, transcript: relativePath(project, result.transcript) });
+    const result = invokeAgent(project, `panel-${readerId}`, panelPrompt(project, readerId, roleId, path.join(project, relative)), { ...config, model }, options);
+    reports.push({ ...parsePanelFile(project, relative, result.stdout), reader_id: readerId, role_id: roleId, model_id: model, transcript: relativePath(project, result.transcript) });
   }
   const anchors = [
     { id: 'opening-hook', target: 'opening hook is understood by a cold reader', status: 'fulfilled', evidence: [quoteFromChapter(project, 1)] },
@@ -851,17 +866,17 @@ function runPanel(project, config, options, run) {
   const comprehension = reports.filter((item) => Number(item.comprehension_0_to_10) >= 7).length / reports.length;
   const continuation = reports.filter((item) => item.would_continue === true).length / reports.length;
   const evidence = {
-    schema_version: '1.1', reviewed_through: 3, independent_readers: reports.length, distinct_models: [...new Set(reports.map((item) => item.model_id))].length,
+    schema_version: '1.2', reviewed_through: 3, review_mode: reviewMode, independent_readers: reports.length, distinct_models: [...new Set(reports.map((item) => item.model_id))].length, distinct_roles: [...new Set(reports.map((item) => item.role_id))].length,
     reader_score: Number((average('continuation_0_to_10') * 0.4 + average('platform_fit_0_to_10') * 0.25 + average('comprehension_0_to_10') * 0.2 + average('prose_naturalness_0_to_10') * 0.15).toFixed(2)),
     platform_fit: Number(average('platform_fit_0_to_10').toFixed(2)), comprehension_pass_rate: Number(comprehension.toFixed(2)), continuation_rate: Number(continuation.toFixed(2)),
     critical_failures: 0, target_anchors: anchors,
-    reader_reports: reports.map((item) => ({ reader_id: item.reader_id || '', model_id: item.model_id, transcript: item.transcript, summary: String(item.reason || item.strongest_hook || '').slice(0, 1000), confusions: Array.isArray(item.confusions) ? item.confusions : [], continue_next: item.would_continue })),
+    reader_reports: reports.map((item) => ({ reader_id: item.reader_id || '', role_id: item.role_id, model_id: item.model_id, transcript: item.transcript, summary: String(item.reason || item.strongest_hook || '').slice(0, 1000), confusions: Array.isArray(item.confusions) ? item.confusions : [], continue_next: item.would_continue, veto: item.veto === true, veto_reason: String(item.veto_reason || '').slice(0, 1000) })),
     findings: [], raw_reports: reports,
-    reason: 'Cross-model cold-reader panel completed by the autopilot.', updated_at: new Date().toISOString(),
+    reason: reviewMode === 'cross_model' ? 'Cross-model role-based cold-reader panel completed by the autopilot.' : 'Single-model, role-separated cold-reader panel completed by the autopilot.', updated_at: new Date().toISOString(),
   };
   const evidenceFile = 'analysis/autopilot-pilot.json';
   writeJson(path.join(project, evidenceFile), evidence);
-  run.panel = { status: 'collected', attempts: attempt, evidence: evidenceFile, readers: reports.length, score: evidence.reader_score };
+  run.panel = { status: 'collected', attempts: attempt, evidence: evidenceFile, readers: reports.length, review_mode: reviewMode, score: evidence.reader_score };
   updateRun(project, { panel: run.panel, phase: 'pilot' });
   return { evidence, evidenceFile };
 }

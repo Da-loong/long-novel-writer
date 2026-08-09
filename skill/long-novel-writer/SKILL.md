@@ -134,7 +134,7 @@ node <技能目录>/scripts/rank-scan.js --platform fanqie --dry-run
 
 黄金三章依次完成：第 1 章异常与明确欲望；第 2 章代价与行动；第 3 章不可逆选择与长线承诺。按题材读取 `references/writing/genre-prose-cards/` 中对应卡片，并按需读取人物、大纲、钩子、情感与读者画像参考。
 
-开新书时同时读取 `references/writing/platform-pilot-and-readability.md` 与 `references/writing/reader-metrics.md`。黄金三章必须先证明“普通读者看得懂、愿意追”，再证明设定复杂；每章新增需记忆概念默认不超过 3 个，连续解释不超过 150 个中文字符，且不得提前消费下一章章拍。30 万字以上项目写完第 3 章后暂停，由目标读者直接冷读正文；模型自评和脚本通过不能替代真人放行。
+开新书时同时读取 `references/writing/platform-pilot-and-readability.md` 与 `references/writing/reader-metrics.md`。黄金三章必须先证明“普通读者看得懂、愿意追”，再证明设定复杂；每章新增需记忆概念默认不超过 3 个，连续解释不超过 150 个中文字符，且不得提前消费下一章章拍。无人值守项目写完第 3 章后运行角色盲评：单模型时必须由至少 3 个独立角色协议评审；配置多个模型后升级为跨模型角色盲评。两种模式都要保留正文定位、问题、重写建议与一票否决证据。
 
 ## Phase 4：正文写作
 
@@ -151,12 +151,12 @@ node <技能目录>/scripts/rank-scan.js --platform fanqie --dry-run
 
 写后追加 `node scripts/reader-metrics.js <章节>`；它只提供开头延迟、解释块、对白比例和章尾形状的证据。任何预警先做结构/读者判断，不得用删词把预警刷成通过。
 
-机械 `finish` 只表示工程状态完整，不表示读者体验合格。30 万字以上项目开始第 4 章前：`supervised` 模式记录真人试读结论；`autopilot` 模式生成至少 3 个独立评审的盲评 JSON，并运行：
+机械 `finish` 只表示工程状态完整，不表示读者体验合格。30 万字以上项目开始第 4 章前：`supervised` 模式可记录真人试读结论；`autopilot` 模式生成至少 3 个独立评审角色的盲评 JSON。仅配置一个模型时，使用 `single_model_multi_role`；配置两个及以上模型时，使用 `cross_model`。评审角色协议位于项目 `settings/reviewers/`，并运行：
 
 ```powershell
 node <技能目录>/scripts/pilot-review.js status <项目目录>
 node <技能目录>/scripts/pilot-review.js approve <项目目录> --reviewed-through 3 --reviewer <真人> --reason "愿意继续读的具体原因" --human-confirmed
-# 无人值守模式：盲评 JSON 必须满足 reader_score/platform_fit >= 8、理解通过率 >= 0.8、继续阅读率 >= 0.67
+# 无人值守模式：盲评 JSON 必须满足 reader_score/platform_fit >= 8、理解通过率 >= 0.8、继续阅读率 >= 0.67；单模型模式另要求至少 3 个不同 role_id
 node <技能目录>/scripts/autopilot.js pilot-pass <项目目录> --evidence <自动盲评.json>
 ```
 

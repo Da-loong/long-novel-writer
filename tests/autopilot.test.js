@@ -48,7 +48,7 @@ test('autopilot pilot pass keeps the gate closed below thresholds', () => {
   assert.throws(() => pilotPass(project, { evidence: evidencePath }), (error) => error.code === 'AUTOPILOT_PILOT_FAILED');
 });
 
-test('autopilot pilot pass rejects three reviews from a single model', () => {
+test('autopilot pilot pass rejects single-model evidence without distinct reviewer roles', () => {
   const project = initProject();
   start(project);
   for (let chapter = 1; chapter <= 3; chapter++) fs.writeFileSync(path.join(project, 'manuscript', `ch-${String(chapter).padStart(4, '0')}-test.md`), `# 第${chapter}章\n\n门突然开了。\n`, 'utf8');
@@ -58,5 +58,20 @@ test('autopilot pilot pass rejects three reviews from a single model', () => {
     target_anchors: [{ id: 'C1', target: '首章出现危机', status: 'fulfilled', evidence: [{ path: 'manuscript/ch-0001-test.md', quote: '门突然开了。' }] }],
     reader_reports: [1, 2, 3].map((id) => ({ id: `r${id}`, model_id: 'same-model', summary: '看懂', confusions: [], continue_next: true })),
   }), 'utf8');
-  assert.throws(() => pilotPass(project, { evidence: evidencePath }), (error) => error.code === 'AUTOPILOT_PILOT_FAILED' && error.details.failures.includes('cross_model'));
+  assert.throws(() => pilotPass(project, { evidence: evidencePath }), (error) => error.code === 'AUTOPILOT_PILOT_FAILED' && error.details.failures.includes('reviewer_diversity'));
+});
+
+test('autopilot pilot pass accepts a single model when three independent roles provide evidence', () => {
+  const project = initProject();
+  start(project);
+  for (let chapter = 1; chapter <= 3; chapter++) fs.writeFileSync(path.join(project, 'manuscript', `ch-${String(chapter).padStart(4, '0')}-test.md`), `# Chapter ${chapter}\n\nThe door opened.\n`, 'utf8');
+  const evidencePath = path.join(project, 'analysis', 'single-model-roles.json');
+  fs.writeFileSync(evidencePath, JSON.stringify({
+    review_mode: 'single_model_multi_role', reviewed_through: 3, independent_readers: 3, distinct_models: 1, distinct_roles: 3, reader_score: 8.5, platform_fit: 8.5, comprehension_pass_rate: 1, continuation_rate: 1, critical_failures: 0,
+    target_anchors: [{ id: 'C1', target: 'opening conflict', status: 'fulfilled', evidence: [{ path: 'manuscript/ch-0001-test.md', quote: 'The door opened.' }] }],
+    reader_reports: [['fanqie-editor'], ['serial-reader'], ['prose-editor']].map(([role_id], index) => ({ id: `r${index + 1}`, role_id, model_id: 'deepseek-v4-flash[1M]', summary: 'clear', confusions: [], continue_next: true })),
+  }), 'utf8');
+  const report = pilotPass(project, { evidence: evidencePath });
+  assert.equal(report.verdict.review_mode, 'single_model_multi_role');
+  assert.equal(report.verdict.reviewer, 'autopilot-single-model-role-panel');
 });
