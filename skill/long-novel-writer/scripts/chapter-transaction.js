@@ -7,6 +7,7 @@ const path = require('path');
 const { CliError, emitError, atomicWrite } = require('./cap-utils');
 const { build } = require('./context-pack');
 const { write: writeForeshadowingIndex } = require('./foreshadowing-index');
+const { write: writeChapterCard } = require('./chapter-card');
 const { capture: captureChapterMemory } = require('./chapter-memory');
 const { gate } = require('./chapter-gate');
 
@@ -127,6 +128,12 @@ function begin(projectInput, options = {}) {
     errors: foreshadowing.errors.map((item) => ({ severity: 'error', code: item.code, file: 'outline/foreshadowing-ledger.md', detail: JSON.stringify(item) })),
     warnings: foreshadowing.warnings, foreshadowing_index: path.join(project, 'state', 'foreshadowing-index.json'),
   };
+  const chapterCard = writeChapterCard(project, { chapter: String(chapter) });
+  if (chapterCard.errors.length) return {
+    ok: false, command: 'begin', project, chapter, transaction_written: false,
+    errors: chapterCard.errors.map((item) => ({ severity: 'error', code: item.code, file: 'outline/chapter-beats.md', detail: JSON.stringify(item) })),
+    warnings: chapterCard.warnings, chapter_card: chapterCard.output,
+  };
   const context = build(project, { chapter: String(chapter), query: options.query || '', recent: options.recent, retrieve: options.retrieve, budget: options.budget });
   const contextPath = path.join(project, 'state', 'context-pack.md');
   atomicWrite(contextPath, context.markdown);
@@ -138,10 +145,11 @@ function begin(projectInput, options = {}) {
     created_at: now, updated_at: now, failures: 0, min_chars: range.minimum, max_chars: range.maximum,
     context_pack: { path: 'state/context-pack.md', sha256: digestFile(contextPath), manifest: context.manifest },
     foreshadowing_index: { path: 'state/foreshadowing-index.json', sha256: digestFile(path.join(project, 'state', 'foreshadowing-index.json')), due: foreshadowing.due },
+    chapter_card: { path: chapterCard.relative_output, sha256: digestFile(chapterCard.output), warnings: chapterCard.warnings },
     canon: canonManifest(project), last_result: { pre_gate_ok: true },
   };
   atomicWrite(transactionPath, `${JSON.stringify(transaction, null, 2)}\n`);
-  return { ok: true, command: 'begin', project, chapter, transaction: transactionPath, context: contextPath, foreshadowing_index: path.join(project, 'state', 'foreshadowing-index.json'), due_foreshadowing: foreshadowing.due, range, source_count: context.manifest.sources.length };
+  return { ok: true, command: 'begin', project, chapter, transaction: transactionPath, context: contextPath, foreshadowing_index: path.join(project, 'state', 'foreshadowing-index.json'), chapter_card: chapterCard.output, due_foreshadowing: foreshadowing.due, range, source_count: context.manifest.sources.length };
 }
 
 function chapterFile(project, chapter) {

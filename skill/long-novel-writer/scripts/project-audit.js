@@ -55,9 +55,12 @@ function readJson(file, fallback = {}) {
 }
 
 function dynamicTracked(project) {
-  const directory = path.join(project, 'state', 'chapter-memory');
-  if (!fs.existsSync(directory)) return [];
-  return fs.readdirSync(directory).filter((name) => /^ch-\d{4}\.json$/i.test(name)).sort().map((name) => `state/chapter-memory/${name}`);
+  const roots = [['chapter-memory', 'state/chapter-memory'], ['chapter-cards', 'state/chapter-cards']];
+  return roots.flatMap(([folder, relative]) => {
+    const directory = path.join(project, relative);
+    if (!fs.existsSync(directory)) return [];
+    return fs.readdirSync(directory).filter((name) => /^ch-\d{4}\.json$/i.test(name)).sort().map((name) => `state/${folder}/${name}`);
+  });
 }
 
 function audit(projectInput, options = {}) {

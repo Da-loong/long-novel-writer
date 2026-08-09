@@ -104,3 +104,25 @@ test('stop writes a resumable reason and status exposes all runtimes', () => {
   assert.equal(status.autopilot.status, 'paused');
   assert.equal(status.workflow.status, 'running');
 });
+
+test('autopilot repairs a failed draft inside the active chapter transaction', () => {
+  const project = projectOf();
+  runner.start(project, { 'max-attempts': '1', 'chapter-revision-passes': '2' });
+  const repairAgent = (request) => {
+    if (request.task === 'mvp') {
+      const result = fakeAgent(request);
+      const chapterFile = fs.readdirSync(path.join(request.project, 'manuscript')).find((name) => /^ch-\d{4}-.+\.md$/i.test(name));
+      fs.writeFileSync(path.join(request.project, 'manuscript', chapterFile), '# Broken draft\n\n[TODO]\n', 'utf8');
+      return result;
+    }
+    if (request.task === 'mvp-structure-revise') return fakeAgent({ ...request, task: 'mvp' });
+    return fakeAgent(request);
+  };
+  const report = runner.runProject(project, { 'max-chapters': '1', invokeAgent: repairAgent });
+  assert.equal(report.ok, true, JSON.stringify(report));
+  const qa = JSON.parse(fs.readFileSync(path.join(project, 'analysis', 'autopilot-qa-ch0001.json'), 'utf8'));
+  assert.equal(qa.revision_passes.length, 1);
+  assert.equal(qa.revision_passes[0].task, 'mvp-structure-revise');
+  const tasks = fs.readdirSync(path.join(project, 'state', 'agent-runs')).filter((name) => name.endsWith('.json')).map((name) => JSON.parse(fs.readFileSync(path.join(project, 'state', 'agent-runs', name), 'utf8')).task);
+  assert.ok(tasks.includes('mvp-structure-revise'));
+});

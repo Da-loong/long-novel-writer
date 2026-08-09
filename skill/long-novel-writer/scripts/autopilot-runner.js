@@ -36,6 +36,7 @@ const DEFAULTS = {
   panel_readers: 3,
   panel_attempts: 2,
   review_interval: 10,
+  chapter_revision_passes: 2,
 };
 
 function argsOf(argv) {
@@ -102,6 +103,7 @@ function configOf(project, options = {}) {
     panel_readers: Math.max(3, Math.floor(number('panel-readers', number('panel_readers', DEFAULTS.panel_readers)))),
     panel_attempts: Math.max(1, Math.floor(number('panel-attempts', number('panel_attempts', DEFAULTS.panel_attempts)))),
     review_interval: Math.max(1, Math.floor(number('review-interval', number('review_interval', DEFAULTS.review_interval)))),
+    chapter_revision_passes: Math.max(0, Math.floor(number('chapter-revision-passes', number('chapter_revision_passes', DEFAULTS.chapter_revision_passes)))),
   };
 }
 
@@ -289,9 +291,9 @@ function quarantineChapter(project, chapter, attempt) {
   });
 }
 
-function ensureQa(project, chapter, metrics, ai, deg, format) {
+function ensureQa(project, chapter, metrics, ai, deg, format, revisionPasses = []) {
   const relative = `analysis/autopilot-qa-ch${String(chapter).padStart(4, '0')}.json`;
-  const payload = { schema_version: '1.0', chapter, metrics, ai_patterns: ai, degeneration: deg, format, created_at: new Date().toISOString() };
+  const payload = { schema_version: '1.1', chapter, metrics, ai_patterns: ai, degeneration: deg, format, revision_passes: revisionPasses, created_at: new Date().toISOString() };
   writeJson(path.join(project, relative), payload);
   if (!fs.existsSync(path.join(project, 'analysis', 'qa-report.md'))) atomicWrite(path.join(project, 'analysis', 'qa-report.md'), `# QA chapter ${chapter}\n\n- deterministic report: ${relative}\n`);
   return relative;
@@ -303,6 +305,30 @@ function criticalQuality(metrics, ai, deg, format) {
   const hardWarnings = (metrics?.warnings || []).filter((warning) => ['OPENING_ACTION_DELAY', 'EXPOSITION_BLOCK'].includes(warning.code));
   const formatErrors = Number(format?.errors?.length || 0);
   return { ok: aiCount === 0 && degCount === 0 && formatErrors === 0 && hardWarnings.length === 0, ai_count: aiCount, degeneration_count: degCount, format_errors: formatErrors, hard_warnings: hardWarnings };
+}
+
+
+function inspectChapter(manuscript) {
+  const text = fs.readFileSync(manuscript, 'utf8');
+  const metrics = readerMetrics.analyzeText(manuscript, text);
+  const ai = aiPatterns.analyze(manuscript, text);
+  const deg = degeneration.analyze(manuscript, text);
+  const format = formatGate.analyze(manuscript, text);
+  return { text, metrics, ai, deg, format, quality: criticalQuality(metrics, ai, deg, format) };
+}
+
+function revisionPrompt(project, chapter, manuscript, pass, inspection) {
+  const task = pass === 1 ? 'Draft B structural repair' : 'Draft C language repair';
+  return [
+    `You are the ${task} node for Chinese web-novel chapter ${chapter}.`,
+    `Project root: ${project}`,
+    `Edit only this manuscript: ${relativePath(project, manuscript)}. Keep the same filename and one chapter title.`,
+    `Read the binding chapter card at state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, the context pack, current state, and the deterministic QA findings below.`,
+    `QA findings: ${JSON.stringify(inspection.quality)}`,
+    'Preserve canon, required beat, character knowledge boundaries, and the end hook. Replace abstract explanation with scene action, choice, consequence, or purposeful dialogue where the findings require it.',
+    'Keep Fanqie mobile formatting: plain prose only, short readable paragraphs, concrete action, and a changed ending situation. Update no settings, outline, or project-state files.',
+    'Finish by saving the revised manuscript in place. Do not write planning notes into the manuscript.',
+  ].join('\n');
 }
 
 function commitState(project, chapter, words) {
@@ -335,7 +361,8 @@ function chapterPrompt(project, chapter, transactionResult) {
     'You are the chapter production node in a deterministic Chinese web-novel pipeline.',
     `Project root: ${project}`,
     `Write exactly chapter ${chapter}. The transaction and context pack already exist: ${transactionResult.context}.`,
-    'Read the local skill, author intent, current focus, reader contract, platform contract, chapter beat, context pack, current state, and unresolved hooks.',
+    `The binding chapter card is state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json.`,
+    'Read the local skill, author intent, current focus, reader contract, platform contract, chapter card, chapter beat, context pack, current state, and unresolved hooks.',
     `Create one file matching manuscript/ch-${String(chapter).padStart(4, '0')}-<title>.md with complete publishable Chinese prose.`,
     'Format contract: keep one chapter title only, then plain prose separated by single blank lines; no outline headings, lists, tables, code fences, logs, or self-evaluation.',
     'Keep paragraphs mobile-first (normally under 260 Chinese characters) and split long sentences at action, reaction, dialogue, and result beats. Put purposeful dialogue in its own paragraph.',
@@ -379,19 +406,27 @@ function runChapter(project, config, options, run) {
   run.attempts = { ...(run.attempts || {}), [`chapter-${actualChapter}`]: Number(run.attempts?.[`chapter-${actualChapter}`] || 0) + 1 };
   updateRun(project, { current_chapter: actualChapter, phase: actualChapter <= 3 ? 'pilot-build' : 'production', attempts: run.attempts, last_event: { type: 'chapter_started', chapter: actualChapter } });
   const agent = invokeAgent(project, 'mvp', chapterPrompt(project, actualChapter, beginResult), config, options);
-  const files = chapterFiles(project, actualChapter);
+  const agentRuns = [agent];
+  let files = chapterFiles(project, actualChapter);
   if (files.length !== 1) throw new CliError('CHAPTER_ARTIFACT_SHAPE', `Expected exactly one manuscript file for chapter ${actualChapter}`, { files: files.map((file) => relativePath(project, file)) });
-  const manuscript = files[0];
-  const text = fs.readFileSync(manuscript, 'utf8');
-  const metrics = readerMetrics.analyzeText(manuscript, text);
-  const ai = aiPatterns.analyze(manuscript, text);
-  const deg = degeneration.analyze(manuscript, text);
-  const format = formatGate.analyze(manuscript, text);
-  const quality = criticalQuality(metrics, ai, deg, format);
+  let manuscript = files[0];
+  let inspection = inspectChapter(manuscript);
+  const revisionPasses = [];
+  for (let pass = 1; pass <= config.chapter_revision_passes && !inspection.quality.ok; pass++) {
+    const task = pass === 1 ? 'mvp-structure-revise' : 'mvp-language-revise';
+    const revision = invokeAgent(project, task, revisionPrompt(project, actualChapter, manuscript, pass, inspection), config, options);
+    agentRuns.push(revision);
+    files = chapterFiles(project, actualChapter);
+    if (files.length !== 1) throw new CliError('CHAPTER_ARTIFACT_SHAPE', `Revision produced an invalid manuscript shape for chapter ${actualChapter}`, { files: files.map((file) => relativePath(project, file)), task });
+    manuscript = files[0];
+    inspection = inspectChapter(manuscript);
+    revisionPasses.push({ pass, task, run_id: revision.run_id, quality: inspection.quality });
+  }
+  const { text, metrics, ai, deg, format, quality } = inspection;
   const wordsBefore = Number(before.word_count || 0);
   const words = wordsBefore + countText(text).chinese_chars;
-  const qa = ensureQa(project, actualChapter, metrics, ai, deg, format);
-  if (!quality.ok) throw new CliError('CHAPTER_QUALITY_GATE_FAILED', `Chapter ${actualChapter} quality gate failed`, { chapter: actualChapter, quality, qa });
+  const qa = ensureQa(project, actualChapter, metrics, ai, deg, format, revisionPasses);
+  if (!quality.ok) throw new CliError('CHAPTER_QUALITY_GATE_FAILED', `Chapter ${actualChapter} quality gate failed`, { chapter: actualChapter, quality, qa, revision_passes: revisionPasses });
   const currentStateFile = path.join(project, 'state', 'current-state.md');
   const currentStateBefore = fs.existsSync(currentStateFile) ? fs.readFileSync(currentStateFile, 'utf8') : null;
   commitState(project, actualChapter, words);
@@ -406,10 +441,10 @@ function runChapter(project, config, options, run) {
   }
   workflow.postHoc(project, { chapter: actualChapter, summary: `Chapter ${actualChapter} committed with ${countText(text).chinese_chars} Chinese characters.`, artifacts: `${relativePath(project, manuscript)},${qa},${finished.event.chapter_memory.path}` });
   if (actualChapter === 1) finishWorkflowFirstChapter(project, actualChapter, manuscript, config, options);
-  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent.run_id, quality }, word_count: words };
+  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, quality }, word_count: words };
   updateRun(project, nextState);
-  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, word_count: words, quality });
-  return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent.run_id };
+  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, word_count: words, quality });
+  return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses };
 }
 
 function quoteFromChapter(project, chapter) {

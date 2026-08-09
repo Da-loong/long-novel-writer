@@ -38,6 +38,8 @@ test('begin transaction builds context and locks the chapter before drafting', (
   const report = begin(project, { chapter: '1', query: '林舟 账本', 'min-chars': '100', 'max-chars': '1200' });
   assert.equal(report.ok, true, JSON.stringify(report));
   assert.ok(fs.existsSync(path.join(project, 'state', 'context-pack.md')));
+  assert.ok(fs.existsSync(path.join(project, 'state', 'chapter-cards', 'ch-0001.json')));
+  assert.ok(fs.existsSync(report.chapter_card));
   const current = status(project);
   assert.equal(current.transaction.phase, 'drafting');
   assert.equal(current.has_active_transaction, true);

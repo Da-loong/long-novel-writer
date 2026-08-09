@@ -285,3 +285,7 @@ node scripts/autopilot-runner.js status <PROJECT>
 ## Durable context, memory, and foreshadowing
 
 Before a chapter transaction, retain `settings/author-intent.md` as the long-term book compass and update `state/current-focus.md` as the near-term arc target. `chapter-transaction begin` now rebuilds the typed foreshadowing index and the context pack; `finish` saves a hash-bound chapter capsule. Read `references/operations/long-context-loop.md` before changing the compass, pack policy, memory, or ledger. Use `scripts/chapter-memory.js` validate <PROJECT> --chapter <N> and `scripts/foreshadowing-index.js` <PROJECT> --chapter <N> --write for direct verification.
+
+## Chapter card and bounded repair
+
+Every transaction creates `state/chapter-cards/ch-XXXX.json` from the beat, due foreshadowing, and character knowledge boundary, then puts it in the critical context tier. The chapter agent follows its three-scene delivery contract. When deterministic draft findings occur, the runner performs bounded Draft B/C repairs before the transaction commits, with every repair recorded in chapter QA. Read `references/operations/chapter-card-and-revision-loop.md`; use `scripts/chapter-card.js` build or validate commands when inspecting a chapter contract.

@@ -19,6 +19,14 @@ The public Openwrite repository was reviewed for architectural comparison at rev
 - Repository: https://github.com/LiPu-jpg/Openwrite
 - Research record: `research/openwrite-integration-study-2026-08-09.md`
 
+## Chapter-workflow research
+
+The following public MIT repositories were inspected for architecture research. The skill uses independent code, templates, and tests; their code, prompt text, and source prose were not copied.
+
+- https://github.com/HZ-KMNO/web-novel-writing-guidance-skill (reviewed at `24dd6d40099c97c3120dc37942e8dc99263c0259`)
+- https://github.com/worldwonderer/oh-story-claudecode (reviewed at `70a834e88d1103f494f45667bab4b31472a83b58`)
+- Research record: `research/agent-skill-practices-iteration-2026-08-09.md`
+
 ## Architecture research
 
 The following public repositories informed independent architectural comparison:

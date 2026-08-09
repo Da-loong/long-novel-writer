@@ -94,6 +94,7 @@
         "state/context-pack.md",
         "settings/author-intent.md",
         "state/current-focus.md",
+        "state/chapter-cards/ch-XXXX.json",
         "state/current-state.md"
       ],
       "outputs": [

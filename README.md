@@ -129,3 +129,13 @@ node "$skill\scripts\chapter-memory.js" validate .\BOOK --chapter 12
 ```
 
 The context-pack manifest reports critical, recent, warm, and cold-retrieved budget use. See `skill/long-novel-writer/references/operations/long-context-loop.md`.
+
+
+## Chapter contracts and automatic repair
+
+Before every chapter transaction, the skill creates a hash-backed chapter card containing the beat, current character knowledge boundary, due foreshadowing, three-scene delivery contract, and acceptance checks. A failed deterministic quality gate triggers up to `chapter_revision_passes` bounded Draft B/C repair calls inside the same transaction; every repair prompt, transcript, and final QA result remains in the book directory.
+
+```powershell
+node "$skill\scripts\chapter-card.js" build .\BOOK --chapter 12
+node "$skill\scripts\chapter-card.js" validate .\BOOK --chapter 12
+```

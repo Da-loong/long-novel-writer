@@ -122,10 +122,12 @@ function build(projectInput, options = {}) {
   const terms = termsOf(options.query || '');
 
   const byPresence = (tier, names) => names.filter((name) => fs.existsSync(path.join(project, name))).map((name) => candidate(tier, name));
+  const chapterBeat = targetBeat(project, targetChapter);
+  const chapterCard = `state/chapter-cards/ch-${String(targetChapter).padStart(4, '0')}.json`;
   const critical = [
     ...byPresence('critical', ['settings/reader-contract.md', 'settings/platform-contract.md', 'settings/author-intent.md']),
-    ...(targetBeat(project, targetChapter) ? [candidate('critical', targetBeat(project, targetChapter).name, targetBeat(project, targetChapter))] : []),
-    ...byPresence('critical', ['state/current-state.md', 'state/current-focus.md', 'state/unresolved-hooks.md', 'state/foreshadowing-index.json']),
+    ...(chapterBeat ? [candidate('critical', chapterBeat.name, chapterBeat)] : []),
+    ...byPresence('critical', ['state/current-state.md', 'state/current-focus.md', 'state/unresolved-hooks.md', 'state/foreshadowing-index.json', chapterCard]),
   ];
   const hotState = byPresence('hot-state', ['state/character-state.md', 'state/timeline.md', 'state/workflow-run.json']);
   const warm = byPresence('warm-core', [

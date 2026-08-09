@@ -30,7 +30,8 @@ project config.
    `outline`. Each attempt stores its prompt and transcript in
    `state/agent-runs/`; a missing artifact or failed process consumes one
    retry and leaves the previous checkpoint intact.
-3. Each chapter is wrapped by `chapter-transaction begin -> agent -> quality
+3. Each chapter is wrapped by `chapter-transaction begin -> chapter card ->
+   Draft A -> bounded Draft B/C repair on deterministic findings -> quality
    checks -> finish -> post-hoc`. State is advanced only around the post gate;
    a failed post gate restores the previous project state and records an
    aborted transaction.
