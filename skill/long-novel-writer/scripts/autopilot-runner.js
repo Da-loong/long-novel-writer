@@ -31,6 +31,11 @@ const resourceLedger = require('./resource-ledger');
 const pacingLedger = require('./pacing-ledger');
 const qualityTrendLedger = require('./quality-trend-ledger');
 const repairDebtLedger = require('./repair-debt-ledger');
+const factProjections = require('./fact-projections');
+const fanqieStyleCard = require('./fanqie-style-card');
+const longformHealth = require('./longform-health');
+const qualityBrief = require('./quality-brief');
+const preproductionGate = require('./preproduction-gate');
 
 const RUN_FILE = 'state/autopilot-run.json';
 const LEDGER_FILE = 'state/autopilot-run-ledger.jsonl';
@@ -159,6 +164,7 @@ function defaultRun(project, config) {
     target_words: Number(state.target_words || 1000000),
     current_chapter: Number(state.updated_through || 0),
     completed_prepare_nodes: [],
+    completed_preproduction_nodes: [],
     panel: { status: 'pending', attempts: 0, evidence: null },
     attempts: {},
     last_event: null,
@@ -270,7 +276,68 @@ function nodePrompt(project, id) {
   ].join('\n');
 }
 
+function preproductionPrompt(project, id) {
+  const prompts = {
+    'rank-scan': [
+      'You are the ranking acquisition node. Read settings/market-sources.json.',
+      'Run scripts/rank-scan.js against every configured source or valid cache. Do not invent rows or rankings.',
+      'Write analysis/ranking-snapshot.json with the normalized snapshot, captured_at, items, and acquisition attempts. Keep raw evidence under evidence/snapshots/.',
+    ],
+    'benchmark-pool': [
+      'You are the benchmark selection node. Read analysis/ranking-snapshot.json and its evidence only.',
+      'Select 10-20 same-track books by observable market evidence. Write evidence/derivations/benchmark-pool.md.',
+      'Every selected row must have status selected and cite source IDs; do not use prose, names, plot sequences, or distinctive settings as reusable material.',
+    ],
+    breakdown: [
+      'You are the multi-book deconstruction node. Read the ranking snapshot, benchmark pool, permitted public evidence, and source boundaries.',
+      'Write analysis/breakdown.md with distinct sections for market promise, framework, plot progression, character engine, chapter rhythm, prose behavior, and retention mechanics.',
+      'Describe only abstract mechanisms with provenance. Never reproduce source text, names, scenes, plot chains, or settings.',
+    ],
+    'feature-matrix': [
+      'You are the Book DNA matrix node. Read analysis/breakdown.md and the benchmark pool.',
+      'Write evidence/derivations/benchmark-feature-matrix.md and evidence/derivations/source-boundaries.md.',
+      'Create at least 6 adopted abstract mechanisms across at least 3 dimensions. Every adopted mechanism needs evidence and at least two benchmark IDs. Never copy source expression or plot material.',
+    ],
+  };
+  if (!prompts[id]) throw new CliError('PREPRODUCTION_NODE_UNKNOWN', `Unknown preproduction node: ${id}`, { node: id });
+  return [`Project root: ${project}`, ...prompts[id], 'Finish by saving only the requested project artifacts and return a short machine-readable summary.'].join('\n');
+}
+
+function preproduction(project, config, options, state) {
+  const done = new Set(state.completed_preproduction_nodes || []);
+  const outputs = {
+    'rank-scan': [preproductionGate.RANKING],
+    'benchmark-pool': [preproductionGate.POOL],
+    breakdown: [preproductionGate.BREAKDOWN],
+    'feature-matrix': [preproductionGate.MATRIX, preproductionGate.BOUNDARIES],
+  };
+  for (const id of Object.keys(outputs)) {
+    if (done.has(id)) continue;
+    let success = false;
+    for (let attempt = 1; attempt <= config.max_attempts; attempt++) {
+      state.attempts = { ...(state.attempts || {}), [`preproduction-${id}`]: attempt };
+      updateRun(project, { attempts: state.attempts, phase: 'preproduction', current_node: id });
+      try {
+        invokeAgent(project, id, preproductionPrompt(project, id), config, options);
+        artifactFiles(project, outputs[id]);
+        done.add(id); state.completed_preproduction_nodes = [...done];
+        updateRun(project, { completed_preproduction_nodes: state.completed_preproduction_nodes, last_event: { type: 'preproduction_node_completed', node: id } });
+        event(project, { type: 'preproduction_node_completed', node: id, artifacts: outputs[id] }); success = true; break;
+      } catch (error) {
+        event(project, { type: 'preproduction_node_failed', node: id, attempt, code: error.code || 'UNEXPECTED_ERROR', reason: error.message });
+        if (attempt === config.max_attempts) throw error;
+      }
+    }
+    if (!success) throw new CliError('PREPRODUCTION_NODE_FAILED', `Preproduction node failed: ${id}`, { node: id });
+  }
+  const gate = preproductionGate.validate(project);
+  updateRun(project, { preproduction_gate: gate, phase: 'prepare' });
+  event(project, { type: 'preproduction_gate_passed', details: gate.details });
+  return state;
+}
+
 function prepare(project, config, options, state) {
+  preproduction(project, config, options, state);
   const prepared = new Set(state.completed_prepare_nodes || []);
   const prepIds = ['build', 'character', 'story-plan', 'outline'];
   for (const id of prepIds) {
@@ -374,9 +441,9 @@ function quarantineChapter(project, chapter, attempt) {
   });
 }
 
-function ensureQa(project, chapter, metrics, ai, deg, format, revisionPasses = [], readerReviews = [], chapterFactReport = null, foreshadowingProgress = null, hookAgendaReport = null, resourceLedgerReport = null, qualityTrendReport = null, repairDebtReport = null) {
+function ensureQa(project, chapter, metrics, ai, deg, format, revisionPasses = [], readerReviews = [], chapterFactReport = null, foreshadowingProgress = null, hookAgendaReport = null, resourceLedgerReport = null, qualityTrendReport = null, repairDebtReport = null, operationalSummary = null) {
   const relative = `analysis/autopilot-qa-ch${String(chapter).padStart(4, '0')}.json`;
-  const payload = { schema_version: '1.8', chapter, metrics, ai_patterns: ai, degeneration: deg, format, revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: chapterFactReport, foreshadowing_progress: foreshadowingProgress, hook_agenda: hookAgendaReport, resource_ledger: resourceLedgerReport, quality_trend: qualityTrendReport, repair_debt: repairDebtReport, created_at: new Date().toISOString() };
+  const payload = { schema_version: '1.9', chapter, metrics, ai_patterns: ai, degeneration: deg, format, revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: chapterFactReport, foreshadowing_progress: foreshadowingProgress, hook_agenda: hookAgendaReport, resource_ledger: resourceLedgerReport, quality_trend: qualityTrendReport, repair_debt: repairDebtReport, operational_summary: operationalSummary, created_at: new Date().toISOString() };
   writeJson(path.join(project, relative), payload);
   if (!fs.existsSync(path.join(project, 'analysis', 'qa-report.md'))) atomicWrite(path.join(project, 'analysis', 'qa-report.md'), `# QA chapter ${chapter}\n\n- deterministic report: ${relative}\n`);
   return relative;
@@ -743,7 +810,7 @@ function runChapter(project, config, options, run) {
   const postReview = writePostReviewCheckpoint(project, actualChapter, manuscript, readerReview, active);
   const factRelative = `analysis/chapter-facts-ch${String(actualChapter).padStart(4, '0')}.json`;
   const factLedgerRelative = `${chapterFacts.FACT_LEDGER_DIR}/ch-${String(actualChapter).padStart(4, '0')}.json`;
-  const factBefore = [factRelative, factLedgerRelative, foreshadowingReconcile.OUTPUT, hookAgenda.OUTPUT, resourceLedger.OUTPUT, resourceLedger.WINDOW_OUTPUT, qualityTrendLedger.LEDGER_FILE, qualityTrendLedger.GUIDANCE_FILE, repairDebtLedger.LEDGER_FILE, repairDebtLedger.GUIDANCE_FILE].map((relative) => {
+  const factBefore = [factRelative, factLedgerRelative, factProjections.INDEX, factProjections.OUTPUT, ...factProjections.VIEWS, foreshadowingReconcile.OUTPUT, hookAgenda.OUTPUT, resourceLedger.OUTPUT, resourceLedger.WINDOW_OUTPUT, qualityTrendLedger.LEDGER_FILE, qualityTrendLedger.GUIDANCE_FILE, repairDebtLedger.LEDGER_FILE, repairDebtLedger.GUIDANCE_FILE, longformHealth.OUTPUT, qualityBrief.OUTPUT].map((relative) => {
     const file = path.join(project, relative);
     return { file, text: fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null };
   });
@@ -754,6 +821,9 @@ function runChapter(project, config, options, run) {
   let resourceLedgerReport;
   let qualityTrendReport;
   let repairDebtReport;
+  let projectionReport;
+  let longformHealthReport;
+  let qualityBriefReport;
   try {
     facts = requestFactExtraction(project, actualChapter, manuscript, config, options);
     if (facts.agent) agentRuns.push(facts.agent);
@@ -775,11 +845,14 @@ function runChapter(project, config, options, run) {
   const pacingFile = path.join(project, pacingLedger.LEDGER_FILE);
   const pacingBefore = fs.existsSync(pacingFile) ? fs.readFileSync(pacingFile, 'utf8') : null;
   commitState(project, actualChapter, words);
-  continuity(project, actualChapter, manuscript);
+  projectionReport = factProjections.write(project);
   const pacing = readerReview.enabled ? pacingLedger.update(project, { chapter: String(actualChapter) }) : { ok: true, skipped: true, reason: 'chapter reader review disabled' };
   qualityTrendReport = qualityTrendLedger.write(project, { chapter: String(actualChapter + 1) });
   repairDebtReport = repairDebtLedger.write(project, { chapter: String(actualChapter + 1) });
-  qa = ensureQa(project, actualChapter, metrics, ai, deg, format, revisionPasses, readerReviews, factSummary, foreshadowingProgress, hookAgendaReport, resourceLedgerReport, qualityTrendReport, repairDebtReport);
+  longformHealthReport = longformHealth.write(project);
+  qualityBriefReport = qualityBrief.write(project);
+  const styleMeasure = fanqieStyleCard.measure(project, actualChapter);
+  qa = ensureQa(project, actualChapter, metrics, ai, deg, format, revisionPasses, readerReviews, factSummary, foreshadowingProgress, hookAgendaReport, resourceLedgerReport, qualityTrendReport, repairDebtReport, { projections: projectionReport, longform_health: longformHealthReport, chapter_quality_brief: qualityBriefReport, fanqie_style: styleMeasure });
   const finished = transaction.finish(project, { chapter: actualChapter });
   if (!finished.ok) {
     restoreState(project, before);
@@ -796,7 +869,7 @@ function runChapter(project, config, options, run) {
     throw new CliError('CHAPTER_POST_GATE_FAILED', `Chapter ${actualChapter} post-gate failed`, { errors: finished.errors, warnings: finished.warnings });
   }
   clearPostReviewCheckpoint(project);
-  const chapterArtifacts = [relativePath(project, manuscript), qa, finished.event.chapter_memory.path, ...readerReviews.filter((item) => item.enabled).map((item) => item.file), ...(factSummary.enabled ? [factSummary.file, factSummary.ledger] : []), ...(foreshadowingProgress.output ? [foreshadowingProgress.output] : []), ...(hookAgendaReport?.output ? [hookAgendaReport.output] : []), ...(resourceLedgerReport?.output ? [resourceLedgerReport.output, resourceLedgerReport.window_output] : []), ...(pacing.output ? [pacing.output] : []), qualityTrendLedger.LEDGER_FILE, qualityTrendLedger.GUIDANCE_FILE, repairDebtLedger.LEDGER_FILE, repairDebtLedger.GUIDANCE_FILE, ...revisionArtifacts];
+  const chapterArtifacts = [relativePath(project, manuscript), qa, finished.event.chapter_memory.path, ...readerReviews.filter((item) => item.enabled).map((item) => item.file), ...(factSummary.enabled ? [factSummary.file, factSummary.ledger] : []), factProjections.INDEX, factProjections.OUTPUT, ...factProjections.VIEWS, ...(foreshadowingProgress.output ? [foreshadowingProgress.output] : []), ...(hookAgendaReport?.output ? [hookAgendaReport.output] : []), ...(resourceLedgerReport?.output ? [resourceLedgerReport.output, resourceLedgerReport.window_output] : []), ...(pacing.output ? [pacing.output] : []), qualityTrendLedger.LEDGER_FILE, qualityTrendLedger.GUIDANCE_FILE, repairDebtLedger.LEDGER_FILE, repairDebtLedger.GUIDANCE_FILE, longformHealth.OUTPUT, qualityBrief.OUTPUT, ...revisionArtifacts];
   workflow.postHoc(project, { chapter: actualChapter, summary: `Chapter ${actualChapter} committed with ${countText(text).chinese_chars} Chinese characters.`, artifacts: chapterArtifacts.join(',') });
   if (actualChapter === 1) finishWorkflowFirstChapter(project, actualChapter, manuscript, config, options);
   const readerReviewResult = readerReviewSummary(readerReview, readerReviews.length);

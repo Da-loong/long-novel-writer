@@ -56,7 +56,19 @@ function fakeAgent(request) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, content, 'utf8');
   };
-  if (request.task === 'build') {
+  if (request.task === 'rank-scan') {
+    write('analysis/ranking-snapshot.json', JSON.stringify({ captured_at: new Date().toISOString(), acquisition: { mode: 'fixture' }, items: Array.from({ length: 12 }, (_, index) => ({ rank: index + 1, title: `Book ${index + 1}`, author: `Author ${index + 1}`, genre: 'urban' })) }, null, 2));
+  } else if (request.task === 'benchmark-pool') {
+    const rows = Array.from({ length: 12 }, (_, index) => `| B${String(index + 1).padStart(2, '0')} | Book ${index + 1} | urban | visible rank | synopsis | ranking-snapshot | selected |`).join('\n');
+    write('evidence/derivations/benchmark-pool.md', `# Benchmark pool\n\n| ID | Work | Track | Selection | Scope | Source | Status |\n|---|---|---|---|---|---|---|\n${rows}\n`);
+  } else if (request.task === 'breakdown') {
+    write('analysis/breakdown.md', `# Breakdown\n\n${'Observable market promise, framework, plot, character, chapter, prose, and retention mechanics are abstracted with evidence boundaries. '.repeat(8)}\n`);
+  } else if (request.task === 'feature-matrix') {
+    const dimensions = ['market', 'framework', 'plot', 'character', 'chapter', 'prose'];
+    const rows = dimensions.map((dimension, index) => `| DNA-${index + 1} | ${dimension} | Abstract ${dimension} mechanism | multi-source evidence | B01,B02 | all | adopted |`).join('\n');
+    write('evidence/derivations/benchmark-feature-matrix.md', `# Matrix\n\n| ID | Dimension | Mechanism | Evidence | Sources | Scope | Status |\n|---|---|---|---|---|---|---|\n${rows}\n`);
+    write('evidence/derivations/source-boundaries.md', '# Boundaries\n\nNo source names, text, scenes, plot sequences, or settings enter the new manuscript.\n');
+  } else if (request.task === 'build') {
     write('settings/story-bible.md', '# Story bible\n\n## Premise\nA street vendor sees the cost of every promise.\n');
     write('settings/reader-contract.md', '# Reader contract\n\n## Promise\nFast choices, visible costs, and a cliffhanger every chapter.\n');
     write('settings/platform-contract.md', '# Platform contract\n\n## Fit\nMobile-first pacing with a clear first-screen conflict.\n');
