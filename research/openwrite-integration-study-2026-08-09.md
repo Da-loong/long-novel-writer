@@ -16,6 +16,7 @@ Openwrite separates durable creative direction from chapter execution, packages 
 | Long-term intent plus near-term focus | `settings/author-intent.md` and `state/current-focus.md` created during project initialization | context-pack tier and autopilot chapter prompt |
 | Bounded canonical context | priority-driven `context-pack.js` with source representations and budget report | continuity gate tests |
 | Progressive chapter memory | `chapter-memory.js`; a successful commit produces an immutable capsule with source hash | unit test and transaction event |
+| Chapter settlement observations | memory capsule additionally records hash-bound pointers to the validated fact ledger and cold-reader report, with only compact metadata | drift-detection unit test |
 | Foreshadowing graph/checkpoint | `foreshadowing-index.js` derives nodes, dependency edges, schedule warnings, and due work from the existing ledger | unit test and transaction begin |
 | Transactional state | existing chapter transaction now records the memory artifact and foreshadowing index hash | integration suite |
 

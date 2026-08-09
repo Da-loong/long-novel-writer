@@ -57,6 +57,33 @@ function memoryFile(project, chapter) {
   return path.join(project, MEMORY_DIR, `ch-${String(chapter).padStart(4, '0')}.json`);
 }
 
+// Keep an accepted chapter's *evidence-backed* settlement next to the prose
+// capsule.  A middle-paragraph excerpt is useful for texture, but it is a poor
+// source of truth for long-range continuity.  These receipts point at the
+// validated fact and reader-review artifacts without trying to re-summarize or
+// invent their contents.
+function receiptOf(project, chapter) {
+  const id = String(chapter).padStart(4, '0');
+  const entries = [];
+  const candidates = [
+    { kind: 'chapter_facts', path: `state/fact-ledger/ch-${id}.json` },
+    { kind: 'reader_review', path: `analysis/chapter-reader-review-ch${id}.json` },
+  ];
+  for (const candidate of candidates) {
+    const file = path.join(project, candidate.path);
+    if (!fs.existsSync(file)) continue;
+    let data;
+    try { data = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')); }
+    catch (error) { throw new CliError('MEMORY_RECEIPT_JSON_INVALID', 'Chapter settlement receipt JSON is invalid', { chapter, path: candidate.path, message: error.message }); }
+    if (Number(data.chapter) !== Number(chapter)) throw new CliError('MEMORY_RECEIPT_CHAPTER_MISMATCH', 'Chapter settlement receipt belongs to a different chapter', { chapter, path: candidate.path, receipt_chapter: data.chapter });
+    const compact = candidate.kind === 'chapter_facts'
+      ? { summary: String(data.summary || '').trim(), fact_count: Array.isArray(data.facts) ? data.facts.length : 0 }
+      : { verdict: String(data.verdict || '').trim(), scores: data.scores && typeof data.scores === 'object' ? data.scores : {}, issue_count: Array.isArray(data.issues) ? data.issues.length : 0 };
+    entries.push({ kind: candidate.kind, path: candidate.path, sha256: digest(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')), ...compact });
+  }
+  return entries;
+}
+
 function capture(projectInput, options = {}) {
   const project = path.resolve(projectInput);
   const chapter = Number.parseInt(options.chapter, 10);
@@ -70,9 +97,9 @@ function capture(projectInput, options = {}) {
     return { path: name, sha256: digest(stateText), excerpt: clip(stateText, 360) };
   });
   const memory = {
-    schema_version: '1.0', chapter, created_at: new Date().toISOString(),
+    schema_version: '1.1', chapter, created_at: new Date().toISOString(),
     manuscript: { path: relative(project, manuscript), sha256: digest(text), chinese_chars: countText(text).chinese_chars },
-    capsule: capsuleOf(text), state_after: snapshots,
+    capsule: capsuleOf(text), state_after: snapshots, settlement_receipts: receiptOf(project, chapter),
   };
   const output = memoryFile(project, chapter);
   atomicWrite(output, `${JSON.stringify(memory, null, 2)}\n`);
@@ -97,6 +124,14 @@ function validate(projectInput, options = {}) {
   if (!memory.manuscript?.path || !fs.existsSync(manuscript)) errors.push({ code: 'MEMORY_MANUSCRIPT_MISSING', path: memory.manuscript?.path || null });
   else if (digest(fs.readFileSync(manuscript, 'utf8').replace(/^\uFEFF/, '')) !== memory.manuscript.sha256) errors.push({ code: 'MEMORY_MANUSCRIPT_HASH_MISMATCH', path: memory.manuscript.path });
   for (const field of ['opening', 'turning', 'ending']) if (!String(memory.capsule?.[field] || '').trim()) errors.push({ code: 'MEMORY_CAPSULE_INCOMPLETE', field });
+  if (memory.settlement_receipts !== undefined) {
+    if (!Array.isArray(memory.settlement_receipts)) errors.push({ code: 'MEMORY_RECEIPTS_INVALID' });
+    else for (const receipt of memory.settlement_receipts) {
+      const file = path.join(project, String(receipt?.path || ''));
+      if (!receipt?.kind || !receipt?.path || !receipt?.sha256 || !fs.existsSync(file)) errors.push({ code: 'MEMORY_RECEIPT_MISSING', path: receipt?.path || null });
+      else if (digest(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')) !== receipt.sha256) errors.push({ code: 'MEMORY_RECEIPT_HASH_MISMATCH', path: receipt.path });
+    }
+  }
   return { ok: errors.length === 0, chapter, file, errors, memory };
 }
 
@@ -116,4 +151,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-memory'); }
 }
 
-module.exports = { STATE_FILES, MEMORY_DIR, argsOf, digest, chapterFile, bodyOf, clip, capsuleOf, memoryFile, capture, read, validate, run };
+module.exports = { STATE_FILES, MEMORY_DIR, argsOf, digest, chapterFile, bodyOf, clip, capsuleOf, memoryFile, receiptOf, capture, read, validate, run };

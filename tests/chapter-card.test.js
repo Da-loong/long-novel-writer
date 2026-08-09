@@ -9,6 +9,7 @@ const { spawnSync } = require('node:child_process');
 const card = require('../skill/long-novel-writer/scripts/chapter-card');
 const { build: contextBuild } = require('../skill/long-novel-writer/scripts/context-pack');
 const plotUnit = require('../skill/long-novel-writer/scripts/plot-unit-window');
+const bookDna = require('../skill/long-novel-writer/scripts/book-dna');
 const { audit } = require('../skill/long-novel-writer/scripts/project-audit');
 
 const scripts = path.join(__dirname, '..', 'skill', 'long-novel-writer', 'scripts');
@@ -27,6 +28,8 @@ function projectOf() {
 
 test('chapter card binds a beat, knowledge boundary, due foreshadowing, and scene delivery', () => {
   const project = projectOf();
+  fs.appendFileSync(path.join(project, 'evidence', 'derivations', 'benchmark-feature-matrix.md'), '| DNA-CARD | chapter | Put pressure before explanation and end on a concrete next question. | Shared opening observation. | B01,B02 | opening | adopted |\n', 'utf8');
+  bookDna.compile(project);
   plotUnit.write(project, { chapter: '1' });
   const result = card.write(project, { chapter: '1' });
   assert.equal(result.errors.length, 0, JSON.stringify(result.errors));
@@ -46,6 +49,7 @@ test('chapter card binds a beat, knowledge boundary, due foreshadowing, and scen
   assert.equal(result.card.plot_unit.enabled, true);
   assert.equal(result.card.plot_unit.unit.id, 'U-01');
   assert.equal(result.card.plot_unit.unit.phase, 'setup');
+  assert.equal(result.card.book_dna.due[0].id, 'DNA-CARD');
   assert.ok(fs.existsSync(result.output));
   assert.equal(card.validate(project, { chapter: '1' }).ok, true);
   const cardFile = path.join(project, 'state', 'chapter-cards', 'ch-0001.json');
@@ -66,6 +70,7 @@ test('chapter card binds a beat, knowledge boundary, due foreshadowing, and scen
   assert.ok(pack.manifest.sources.some((item) => item.path === 'state/repair-debt-guidance.json' && item.tier === 'critical'));
   assert.ok(pack.manifest.sources.some((item) => item.path === 'state/plot-unit-window.json' && item.tier === 'critical'));
   assert.ok(pack.manifest.sources.some((item) => item.path === 'state/repair-lessons.json' && item.tier === 'critical'));
+  assert.ok(pack.manifest.sources.some((item) => item.path === 'state/book-dna.json' && item.tier === 'critical'));
   assert.ok(audit(project).artifacts.some((item) => item.path === 'state/chapter-cards/ch-0001.json'));
 });
 

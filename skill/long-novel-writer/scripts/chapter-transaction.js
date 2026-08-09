@@ -17,6 +17,7 @@ const { write: writeQualityTrend, LEDGER_FILE: QUALITY_TREND_FILE, GUIDANCE_FILE
 const { write: writeRepairDebt, LEDGER_FILE: REPAIR_DEBT_FILE, GUIDANCE_FILE: REPAIR_DEBT_GUIDANCE_FILE } = require('./repair-debt-ledger');
 const { write: writeRepairLessons, OUTPUT: REPAIR_LESSONS_FILE } = require('./repair-lessons');
 const { write: writePlotUnitWindow, OUTPUT: PLOT_UNIT_WINDOW_FILE } = require('./plot-unit-window');
+const { compile: compileBookDna, OUTPUT: BOOK_DNA_FILE } = require('./book-dna');
 const { capture: captureChapterMemory } = require('./chapter-memory');
 const { gate } = require('./chapter-gate');
 
@@ -149,6 +150,7 @@ function begin(projectInput, options = {}) {
   const repairDebt = writeRepairDebt(project, { chapter: String(chapter) });
   const repairLessons = writeRepairLessons(project, { chapter: String(chapter) });
   const plotUnit = writePlotUnitWindow(project, { chapter: String(chapter) });
+  const bookDna = compileBookDna(project);
   const chapterCard = writeChapterCard(project, { chapter: String(chapter) });
   if (chapterCard.errors.length) return {
     ok: false, command: 'begin', project, chapter, transaction_written: false,
@@ -175,11 +177,12 @@ function begin(projectInput, options = {}) {
     repair_debt: { path: REPAIR_DEBT_FILE, sha256: digestFile(path.join(project, REPAIR_DEBT_FILE)), guidance_path: REPAIR_DEBT_GUIDANCE_FILE, guidance_sha256: digestFile(path.join(project, REPAIR_DEBT_GUIDANCE_FILE)), entries: repairDebt.ledger.entries.length, primary_root_cause: repairDebt.ledger.audit.primary_root_cause, unresolved_chapters: repairDebt.ledger.audit.unresolved_chapters },
     repair_lessons: { path: REPAIR_LESSONS_FILE, sha256: digestFile(path.join(project, REPAIR_LESSONS_FILE)), count: repairLessons.data.lessons.length, warnings: repairLessons.data.warnings },
     plot_unit: { path: PLOT_UNIT_WINDOW_FILE, sha256: digestFile(path.join(project, PLOT_UNIT_WINDOW_FILE)), enabled: plotUnit.data.enabled, unit: plotUnit.data.unit?.id || null, warnings: plotUnit.data.warnings },
+    book_dna: { path: BOOK_DNA_FILE, sha256: digestFile(path.join(project, BOOK_DNA_FILE)), count: bookDna.mechanism_count, dimensions: bookDna.dimension_count, warnings: bookDna.warnings },
     chapter_card: { path: chapterCard.relative_output, sha256: digestFile(chapterCard.output), warnings: chapterCard.warnings },
     canon: canonManifest(project), last_result: { pre_gate_ok: true },
   };
   atomicWrite(transactionPath, `${JSON.stringify(transaction, null, 2)}\n`);
-  return { ok: true, command: 'begin', project, chapter, transaction: transactionPath, context: contextPath, foreshadowing_index: path.join(project, 'state', 'foreshadowing-index.json'), hook_agenda: path.join(project, HOOK_AGENDA_FILE), resource_ledger: path.join(project, RESOURCE_LEDGER_FILE), resource_window: path.join(project, RESOURCE_WINDOW_FILE), quality_trend: path.join(project, QUALITY_TREND_FILE), quality_guidance: path.join(project, QUALITY_GUIDANCE_FILE), repair_debt: path.join(project, REPAIR_DEBT_FILE), repair_debt_guidance: path.join(project, REPAIR_DEBT_GUIDANCE_FILE), repair_lessons: path.join(project, REPAIR_LESSONS_FILE), plot_unit: path.join(project, PLOT_UNIT_WINDOW_FILE), chapter_card: chapterCard.output, due_foreshadowing: foreshadowing.due, must_advance_hooks: hookAgenda.data.must_advance.map((entry) => entry.id), range, source_count: context.manifest.sources.length };
+  return { ok: true, command: 'begin', project, chapter, transaction: transactionPath, context: contextPath, foreshadowing_index: path.join(project, 'state', 'foreshadowing-index.json'), hook_agenda: path.join(project, HOOK_AGENDA_FILE), resource_ledger: path.join(project, RESOURCE_LEDGER_FILE), resource_window: path.join(project, RESOURCE_WINDOW_FILE), quality_trend: path.join(project, QUALITY_TREND_FILE), quality_guidance: path.join(project, QUALITY_GUIDANCE_FILE), repair_debt: path.join(project, REPAIR_DEBT_FILE), repair_debt_guidance: path.join(project, REPAIR_DEBT_GUIDANCE_FILE), repair_lessons: path.join(project, REPAIR_LESSONS_FILE), plot_unit: path.join(project, PLOT_UNIT_WINDOW_FILE), book_dna: path.join(project, BOOK_DNA_FILE), chapter_card: chapterCard.output, due_foreshadowing: foreshadowing.due, must_advance_hooks: hookAgenda.data.must_advance.map((entry) => entry.id), range, source_count: context.manifest.sources.length };
 }
 
 function chapterFile(project, chapter) {

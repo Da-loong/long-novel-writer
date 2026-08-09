@@ -356,6 +356,21 @@ in revision. Read `references/operations/style-contract-loop.md`; inspect with
 work's names, plot, distinctive wording, or private setting into the project
 style contract.
 
+## Multi-source Book DNA
+
+For a new same-track web novel, build a 10–20-title benchmark pool before
+locking the premise and outline. Record source selection in
+`evidence/derivations/benchmark-pool.md`, then extract only multi-source
+mechanisms into `benchmark-feature-matrix.md` across market, framework, plot,
+character, chapter, prose, and retention. An adopted row requires at least two
+benchmark IDs and an evidence summary. Keep exclusions in `source-boundaries.md`:
+never carry forward source wording, names, scenes, plot sequences, settings, or
+character configurations. `chapter-transaction begin` compiles the matrix into
+hash-bound `state/book-dna.json` and attaches the applicable mechanisms to the
+chapter card; it guides execution but cannot override canon or a chapter beat.
+Read `references/operations/book-dna-loop.md`; inspect directly with
+`scripts/book-dna.js` using `compile <PROJECT>`.
+
 ## Character agency contract
 
 Turn each important character's current goal, pressure, knowledge boundary,

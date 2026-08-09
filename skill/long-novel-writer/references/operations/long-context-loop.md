@@ -17,7 +17,7 @@ The embedded manifest contains source paths, representations, scores, truncation
 
 ## Chapter memory and compression
 
-A successful `chapter-transaction finish` writes `state/chapter-memory/ch-XXXX.json`. The capsule keeps bounded opening, turning, ending, source hash, and state snapshot references. When a cold chapter is retrieved later, the context pack selects this capsule while preserving the manuscript path and hash as the truth source.
+A successful `chapter-transaction finish` writes `state/chapter-memory/ch-XXXX.json`. The capsule keeps bounded opening, turning, ending, source hash, and state snapshot references. When available, it also carries hash-bound settlement receipts for that chapter's validated fact ledger and cold-reader report; these are evidence pointers, not invented summaries. When a cold chapter is retrieved later, the context pack selects this capsule while preserving the manuscript path and hash as the truth source.
 
 ```powershell
 node scripts/chapter-memory.js validate <PROJECT> --chapter 12

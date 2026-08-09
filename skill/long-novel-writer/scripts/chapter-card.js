@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { CliError, emitError, atomicWrite } = require('./cap-utils');
+const bookDna = require('./book-dna');
 
 const CARD_DIR = 'state/chapter-cards';
 const REQUIRED_BEAT_FIELDS = ['pov', 'goal', 'obstacle', 'turn', 'cost', 'information', 'emotion', 'hook'];
@@ -145,6 +146,17 @@ function plotUnitOf(project, chapter) {
   }
 }
 
+function bookDnaOf(project, chapter) {
+  const source = 'state/book-dna.json';
+  const data = bookDna.read(project);
+  return {
+    source,
+    mechanism_count: Array.isArray(data.mechanisms) ? data.mechanisms.length : 0,
+    due: bookDna.due(project, chapter).map((item) => ({ id: item.id, dimension: item.dimension, mechanism: item.mechanism, scope: item.scope, source_ids: item.source_ids })),
+    warnings: Array.isArray(data.warnings) ? data.warnings : [],
+  };
+}
+
 function sourceHashes(project, paths) {
   return paths.filter((relative) => fs.existsSync(path.join(project, relative))).map((relative) => ({ path: relative, sha256: sha256(readText(project, relative)) }));
 }
@@ -196,9 +208,10 @@ function build(projectInput, options = {}) {
   const repairDebtGuidance = repairDebtGuidanceOf(project, chapter);
   const repairLessons = repairLessonsOf(project, chapter);
   const plotUnit = plotUnitOf(project, chapter);
+  const bookDna = bookDnaOf(project, chapter);
   const sources = [
     'settings/author-intent.md', 'state/current-focus.md', 'settings/reader-contract.md', 'settings/platform-contract.md',
-    'outline/chapter-beats.md', 'state/current-state.md', 'state/character-state.md', 'state/character-contracts.json', 'state/style-contract.json', 'state/unresolved-hooks.md', foreshadowing.source, resourceWindow.source, qualityGuidance.source, repairDebtGuidance.source, repairLessons.source, plotUnit.source,
+    'outline/chapter-beats.md', 'state/current-state.md', 'state/character-state.md', 'state/character-contracts.json', 'state/style-contract.json', 'state/unresolved-hooks.md', foreshadowing.source, resourceWindow.source, qualityGuidance.source, repairDebtGuidance.source, repairLessons.source, plotUnit.source, bookDna.source,
   ];
   const card = {
     schema_version: '1.0', generated_at: new Date().toISOString(), chapter, status: errors.length ? 'blocked' : 'ready',
@@ -220,6 +233,7 @@ function build(projectInput, options = {}) {
     repair_debt_guidance: repairDebtGuidance,
     repair_lessons: repairLessons,
     plot_unit: plotUnit,
+    book_dna: bookDna,
     drafting_protocol: {
       draft_a: 'Deliver the beat through visible scene action and preserve the knowledge boundary.',
       draft_b: 'Repair causal, character, pacing, and information-boundary findings before final delivery.',
@@ -282,4 +296,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-card'); }
 }
 
-module.exports = { CARD_DIR, REQUIRED_BEAT_FIELDS, REQUIRED_READER_EXPERIENCE_FIELDS, CHAPTER_OBLIGATION_FIELDS, argsOf, cellsOf, tableRows, beatOf, knowledgeOf, dueForeshadowing, resourceWindowOf, qualityGuidanceOf, repairDebtGuidanceOf, repairLessonsOf, plotUnitOf, sourceHashes, cardFile, readerExperienceOf, chapterObligationsOf, build, write, validate, run };
+module.exports = { CARD_DIR, REQUIRED_BEAT_FIELDS, REQUIRED_READER_EXPERIENCE_FIELDS, CHAPTER_OBLIGATION_FIELDS, argsOf, cellsOf, tableRows, beatOf, knowledgeOf, dueForeshadowing, resourceWindowOf, qualityGuidanceOf, repairDebtGuidanceOf, repairLessonsOf, plotUnitOf, bookDnaOf, sourceHashes, cardFile, readerExperienceOf, chapterObligationsOf, build, write, validate, run };

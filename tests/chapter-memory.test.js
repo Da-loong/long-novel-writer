@@ -26,6 +26,24 @@ test('chapter memory captures a bounded capsule and hash-bound source', () => {
   assert.ok(fs.existsSync(captured.output));
 });
 
+test('chapter memory carries hash-bound fact and reader-review settlement receipts', () => {
+  const project = projectOf();
+  fs.mkdirSync(path.join(project, 'state', 'fact-ledger'), { recursive: true });
+  fs.mkdirSync(path.join(project, 'analysis'), { recursive: true });
+  fs.writeFileSync(path.join(project, 'state', 'fact-ledger', 'ch-0001.json'), JSON.stringify({
+    chapter: 1, summary: 'The choice exposes a new threat.', facts: [{ kind: 'event' }],
+  }), 'utf8');
+  fs.writeFileSync(path.join(project, 'analysis', 'chapter-reader-review-ch0001.json'), JSON.stringify({
+    chapter: 1, verdict: 'pass', scores: { clarity: 8 }, issues: [],
+  }), 'utf8');
+  const captured = memory.capture(project, { chapter: '1' });
+  assert.deepEqual(captured.settlement_receipts.map((item) => item.kind), ['chapter_facts', 'reader_review']);
+  assert.equal(memory.validate(project, { chapter: '1' }).ok, true);
+  fs.appendFileSync(path.join(project, 'analysis', 'chapter-reader-review-ch0001.json'), '\n', 'utf8');
+  const report = memory.validate(project, { chapter: '1' });
+  assert.ok(report.errors.some((item) => item.code === 'MEMORY_RECEIPT_HASH_MISMATCH'));
+});
+
 test('chapter memory detects manuscript drift', () => {
   const project = projectOf();
   memory.capture(project, { chapter: '1' });
