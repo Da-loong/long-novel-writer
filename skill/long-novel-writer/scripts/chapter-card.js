@@ -9,6 +9,7 @@ const { CliError, emitError, atomicWrite } = require('./cap-utils');
 const CARD_DIR = 'state/chapter-cards';
 const REQUIRED_BEAT_FIELDS = ['pov', 'goal', 'obstacle', 'turn', 'cost', 'information', 'emotion', 'hook'];
 const REQUIRED_READER_EXPERIENCE_FIELDS = ['reader_question', 'visible_payoff', 'net_change', 'end_pull'];
+const CHAPTER_OBLIGATION_FIELDS = ['goal', 'obstacle', 'turn', 'cost', 'information', 'emotion', 'hook'];
 
 function argsOf(argv) {
   const args = {};
@@ -136,6 +137,23 @@ function readerExperienceOf(beat) {
   };
 }
 
+// A scene can contain a generic goal, turn, payoff, and hook while still
+// evading the *assigned* beat. Keep the chapter-specific promises separate
+// from the generic scene-shape checks so an independent reader can attest to
+// both with literal prose evidence.
+function chapterObligationsOf(beat) {
+  if (!beat) return [];
+  return [
+    { id: 'beat_goal', field: 'goal', phase: 'entry-pressure', obligation: `POV ${beat.pov} visibly pursues this chapter goal: ${beat.goal}` },
+    { id: 'beat_obstacle', field: 'obstacle', phase: 'entry-pressure', obligation: `The assigned obstacle visibly resists that goal: ${beat.obstacle}` },
+    { id: 'beat_turn', field: 'turn', phase: 'escalation-choice', obligation: `The chapter reaches this decisive turn, choice, or reversal: ${beat.turn}` },
+    { id: 'beat_cost', field: 'cost', phase: 'escalation-choice', obligation: `That turn creates this concrete cost or consequence: ${beat.cost}` },
+    { id: 'beat_information', field: 'information', phase: 'payoff-next-pull', obligation: `The reader receives this on-page answer, result, or new fact: ${beat.information}` },
+    { id: 'beat_emotion', field: 'emotion', phase: 'payoff-next-pull', obligation: `The POV's emotional movement is visible in action, reaction, or choice: ${beat.emotion}` },
+    { id: 'beat_hook', field: 'hook', phase: 'payoff-next-pull', obligation: `The ending leaves this specific next-reading pull: ${beat.hook}` },
+  ];
+}
+
 function build(projectInput, options = {}) {
   const project = path.resolve(projectInput);
   if (!fs.existsSync(project)) throw new CliError('PATH_NOT_FOUND', `Project does not exist: ${project}`, { project });
@@ -168,6 +186,7 @@ function build(projectInput, options = {}) {
       { order: 2, function: 'escalation-choice', must_deliver: [beat.turn, beat.cost] },
       { order: 3, function: 'payoff-next-pull', must_deliver: [beat.information, beat.emotion, beat.hook] },
     ] : [],
+    chapter_obligations: chapterObligationsOf(beat),
     reader_experience_contract: readerExperienceOf(beat),
     foreshadowing_due: foreshadowing.due,
     resource_window: resourceWindow,
@@ -208,6 +227,14 @@ function validate(projectInput, options = {}) {
   if (card.status !== 'ready') errors.push(...(card.errors || [{ code: 'CHAPTER_CARD_NOT_READY' }]));
   for (const field of REQUIRED_BEAT_FIELDS) if (!String(card.chapter_beat?.[field] || '').trim()) errors.push({ code: 'CHAPTER_CARD_BEAT_FIELD_MISSING', field });
   for (const field of REQUIRED_READER_EXPERIENCE_FIELDS) if (!String(card.reader_experience_contract?.[field] || '').trim()) errors.push({ code: 'CHAPTER_CARD_READER_EXPERIENCE_MISSING', field });
+  const obligations = Array.isArray(card.chapter_obligations) ? card.chapter_obligations : [];
+  const obligationIds = new Set(obligations.map((item) => String(item?.id || '').trim()));
+  for (const field of CHAPTER_OBLIGATION_FIELDS) {
+    const id = `beat_${field}`;
+    const obligation = obligations.find((item) => item?.id === id);
+    if (!obligation || !String(obligation.obligation || '').trim() || !String(obligation.phase || '').trim()) errors.push({ code: 'CHAPTER_CARD_OBLIGATION_MISSING', id, field });
+  }
+  if (obligationIds.size !== obligations.length) errors.push({ code: 'CHAPTER_CARD_OBLIGATION_DUPLICATE_ID' });
   return { ok: errors.length === 0, chapter, file, errors, card };
 }
 
@@ -227,4 +254,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-card'); }
 }
 
-module.exports = { CARD_DIR, REQUIRED_BEAT_FIELDS, REQUIRED_READER_EXPERIENCE_FIELDS, argsOf, cellsOf, tableRows, beatOf, knowledgeOf, dueForeshadowing, resourceWindowOf, qualityGuidanceOf, repairDebtGuidanceOf, sourceHashes, cardFile, readerExperienceOf, build, write, validate, run };
+module.exports = { CARD_DIR, REQUIRED_BEAT_FIELDS, REQUIRED_READER_EXPERIENCE_FIELDS, CHAPTER_OBLIGATION_FIELDS, argsOf, cellsOf, tableRows, beatOf, knowledgeOf, dueForeshadowing, resourceWindowOf, qualityGuidanceOf, repairDebtGuidanceOf, sourceHashes, cardFile, readerExperienceOf, chapterObligationsOf, build, write, validate, run };

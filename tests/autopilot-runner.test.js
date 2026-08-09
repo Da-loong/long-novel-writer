@@ -39,12 +39,14 @@ function contractReviewFields(request, chapter) {
   const characters = JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'character-contracts.json'), 'utf8')).characters || [];
   const agenda = hookAgenda.read(request.project);
   const dueHooks = Number(agenda.target_chapter) === Number(chapter) ? agenda.must_advance : [];
+  const obligations = JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'chapter-cards', `ch-${String(chapter).padStart(4, '0')}.json`), 'utf8')).chapter_obligations || [];
   return {
-    schema_version: '1.5',
+    schema_version: '1.6',
     style_signal_checks: style.map((signal) => ({ id: signal.id, verdict: 'pass', evidence, note: 'The chapter opens with a concrete action before exposition.' })),
     character_contract_checks: characters.filter((character) => body.includes(character.name)).map((character) => ({ id: character.id, verdict: 'pass', evidence, note: 'The lead acts toward the debt problem under immediate pressure without claiming hidden knowledge.' })),
     editorial_dimension_checks: chapterReaderReview.EDITORIAL_DIMENSIONS.map((dimension) => ({ id: dimension.id, verdict: 'pass', evidence, note: `The prose supplies literal scene evidence for ${dimension.id}.` })),
     hook_agenda_checks: dueHooks.map((hook) => ({ id: hook.id, verdict: 'pass', evidence, note: `The prose gives ${hook.id} a visible scene movement.` })),
+    chapter_obligation_checks: obligations.map((obligation) => ({ id: obligation.id, verdict: 'pass', evidence, note: `The prose visibly delivers ${obligation.id}.` })),
   };
 }
 
@@ -280,6 +282,42 @@ test('an editorial-dimension failure triggers a transaction repair even with pas
   assert.equal(qa.revision_passes.length, 1);
   assert.deepEqual(qa.reader_reviews[0].editorial_dimension_failures, ['outline_delivery']);
   assert.match(fs.readFileSync(path.join(project, 'analysis', 'chapter-revision-brief-ch0001-r01.md'), 'utf8'), /Editorial outline_delivery/);
+});
+
+test('a failed binding chapter obligation triggers repair even when generic scene checks pass', () => {
+  const project = projectOf();
+  runner.start(project, { 'max-attempts': '1', 'chapter-revision-passes': '2' });
+  let readerRounds = 0;
+  const obligationRepairAgent = (request) => {
+    if (request.task === 'mvp-reader-review') {
+      readerRounds++;
+      const output = request.prompt.match(/analysis\/chapter-reader-review-ch\d{4}-r\d{2}\.json/)?.[0];
+      const chapter = Number(JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'chapter-transaction.json'), 'utf8')).chapter);
+      const checks = contractReviewFields(request, chapter).chapter_obligation_checks.map((check) => check.id === 'beat_turn'
+        ? { ...check, verdict: readerRounds === 1 ? 'fail' : 'pass', note: readerRounds === 1 ? 'The prose makes a choice but does not show the assigned beat turn.' : 'The assigned turn is now shown on page.' }
+        : check);
+      const report = {
+        ...contractReviewFields(request, chapter), chapter, reviewer_id: 'obligation-fixture', verdict: readerRounds === 1 ? 'revise' : 'pass',
+        chapter_obligation_checks: checks,
+        scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 },
+        scene_evidence: sceneEvidence(chapter), rhythm: { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' }, issues: [],
+        summary: readerRounds === 1 ? 'Generic scene shape is present but the assigned turn is absent.' : 'The exact assigned turn is now delivered.',
+      };
+      const file = path.join(request.project, output);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify(report, null, 2), 'utf8');
+      return { exitCode: 0, stdout: '', stderr: '' };
+    }
+    if (request.task === 'mvp-structure-revise') return fakeAgent({ ...request, task: 'mvp' });
+    return fakeAgent(request);
+  };
+  const result = runner.runProject(project, { 'max-chapters': '1', invokeAgent: obligationRepairAgent });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const qa = JSON.parse(fs.readFileSync(path.join(project, 'analysis', 'autopilot-qa-ch0001.json'), 'utf8'));
+  assert.deepEqual(qa.reader_reviews[0].chapter_obligation_failures, ['beat_turn']);
+  assert.match(fs.readFileSync(path.join(project, 'analysis', 'chapter-revision-brief-ch0001-r01.md'), 'utf8'), /Binding chapter obligation beat_turn/);
+  const revision = JSON.parse(fs.readFileSync(path.join(project, 'state', 'chapter-revisions', 'ch-0001-r01.json'), 'utf8'));
+  assert.equal(revision.decision.reason, 'reader_block_resolved');
 });
 
 test('unimproved cold-reader repair is discarded and leaves the previous draft as the candidate', () => {

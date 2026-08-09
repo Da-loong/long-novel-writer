@@ -13,6 +13,7 @@ const feedbackRules = require('./feedback-rules');
 const styleContract = require('./style-contract');
 const characterContract = require('./character-contract');
 const hookAgenda = require('./hook-agenda');
+const chapterCard = require('./chapter-card');
 
 const REQUIRED_SCORES = ['clarity', 'continuation', 'fanqie_fit', 'character_agency', 'payoff'];
 const REQUIRED_SCENE_EVIDENCE = ['goal', 'obstacle', 'turn', 'payoff', 'hook'];
@@ -27,6 +28,7 @@ const STYLE_SIGNAL_VERDICTS = new Set(['pass', 'fail', 'not_applicable']);
 const CHARACTER_CONTRACT_VERDICTS = new Set(['pass', 'fail', 'not_applicable']);
 const EDITORIAL_DIMENSION_VERDICTS = new Set(['pass', 'fail', 'not_applicable']);
 const HOOK_AGENDA_VERDICTS = new Set(['pass', 'fail']);
+const CHAPTER_OBLIGATION_VERDICTS = new Set(['pass', 'fail']);
 // A focused, evidence-bound subset of the multi-dimensional editorial pass is
 // stronger than a free-form omnibus scorecard for unattended serial writing.
 const EDITORIAL_DIMENSIONS = [
@@ -246,9 +248,43 @@ function validateHookAgendaChecks(value, hooks, manuscript, chapter, required = 
   return checks;
 }
 
-function validateData(data, manuscript, chapter, minScore, rules = [], signals = [], characters = []) {
+function chapterObligations(project, chapter) {
+  const checked = chapterCard.validate(project, { chapter: String(chapter) });
+  if (!checked.ok) invalid('Chapter obligations require a ready binding chapter card', { chapter, file: normal(path.relative(project, checked.file)), errors: checked.errors });
+  const obligations = Array.isArray(checked.card.chapter_obligations) ? checked.card.chapter_obligations : [];
+  if (!obligations.length) invalid('Binding chapter card has no chapter obligations', { chapter, file: normal(path.relative(project, checked.file)) });
+  return obligations.map((item) => ({ id: String(item.id || '').trim(), field: String(item.field || '').trim(), phase: String(item.phase || '').trim(), obligation: String(item.obligation || '').trim() }));
+}
+
+function validateChapterObligationChecks(value, obligations, manuscript, chapter, required = false) {
+  const expected = Array.isArray(obligations) ? obligations : [];
+  if (value === undefined || value === null) {
+    if (required) invalid('Reader review schema 1.6 must check every binding chapter obligation', { chapter, obligation_ids: expected.map((item) => item.id) });
+    return [];
+  }
+  if (!Array.isArray(value)) invalid('Reader review chapter_obligation_checks must be an array', { chapter });
+  const byId = new Map(expected.map((item) => [item.id, item]));
+  const seen = new Set();
+  const checks = value.map((check, index) => {
+    if (!check || typeof check !== 'object' || Array.isArray(check)) invalid('Chapter obligation check must be an object', { chapter, index });
+    const id = String(check.id || '').trim();
+    const verdict = String(check.verdict || '').trim();
+    const evidence = String(check.evidence || '').trim();
+    const note = String(check.note || '').trim();
+    if (!byId.has(id) || seen.has(id)) invalid('Chapter obligation check ID must match every binding obligation exactly once', { chapter, index, id, obligation_ids: [...byId.keys()] });
+    if (!CHAPTER_OBLIGATION_VERDICTS.has(verdict) || !note || note.length > 800) invalid('Chapter obligation check needs a valid verdict and concise note', { chapter, index, id, verdict });
+    if (!evidence || !manuscript.body.includes(evidence)) invalid('Chapter obligation check requires a literal manuscript excerpt', { chapter, index, id, evidence });
+    seen.add(id);
+    const obligation = byId.get(id);
+    return { id, verdict, evidence, note, field: obligation.field, phase: obligation.phase, obligation: obligation.obligation };
+  });
+  if (required && seen.size !== byId.size) invalid('Reader review is missing a binding chapter obligation check', { chapter, checked: [...seen], obligation_ids: [...byId.keys()] });
+  return checks;
+}
+
+function validateData(data, manuscript, chapter, minScore, rules = [], signals = [], characters = [], obligations = []) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) invalid('Reader review must be a JSON object', { chapter });
-  if (!['1.0', '1.1', '1.2', '1.3', '1.4', '1.5'].includes(String(data.schema_version || ''))) invalid('Reader review schema_version must be 1.0, 1.1, 1.2, 1.3, 1.4, or 1.5', { chapter, schema_version: data.schema_version });
+  if (!['1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6'].includes(String(data.schema_version || ''))) invalid('Reader review schema_version must be 1.0 through 1.6', { chapter, schema_version: data.schema_version });
   if (Number(data.chapter) !== Number(chapter)) invalid('Reader review chapter does not match manuscript', { expected: Number(chapter), actual: data.chapter });
   if (!String(data.reviewer_id || '').trim()) invalid('Reader review reviewer_id is required', { chapter });
   if (!VERDICTS.has(data.verdict)) invalid('Reader review verdict must be pass or revise', { chapter, verdict: data.verdict });
@@ -263,12 +299,14 @@ function validateData(data, manuscript, chapter, minScore, rules = [], signals =
   const feedbackChecks = validateFeedbackRuleChecks(data.feedback_rule_checks, rules, manuscript, chapter);
   const styleChecks = validateStyleSignalChecks(data.style_signal_checks, signals, manuscript, chapter);
   const characterChecks = validateCharacterContractChecks(data.character_contract_checks, characters, manuscript, chapter);
-  const requiresEditorial = ['1.4', '1.5'].includes(String(data.schema_version));
+  const requiresEditorial = ['1.4', '1.5', '1.6'].includes(String(data.schema_version));
   const editorialChecks = validateEditorialDimensionChecks(data.editorial_dimension_checks, manuscript, chapter, requiresEditorial);
   const agenda = hookAgenda.read(path.dirname(path.dirname(manuscript.file)));
   const mustAdvance = Number(agenda.target_chapter) === Number(chapter) ? agenda.must_advance : [];
-  if (mustAdvance.length && String(data.schema_version) !== '1.5') invalid('Must-advance hooks require reader review schema 1.5', { chapter, schema_version: data.schema_version, must_advance_ids: mustAdvance.map((hook) => hook.id) });
-  const hookChecks = validateHookAgendaChecks(data.hook_agenda_checks, mustAdvance, manuscript, chapter, String(data.schema_version) === '1.5');
+  if (mustAdvance.length && !['1.5', '1.6'].includes(String(data.schema_version))) invalid('Must-advance hooks require reader review schema 1.5 or later', { chapter, schema_version: data.schema_version, must_advance_ids: mustAdvance.map((hook) => hook.id) });
+  const hookChecks = validateHookAgendaChecks(data.hook_agenda_checks, mustAdvance, manuscript, chapter, ['1.5', '1.6'].includes(String(data.schema_version)));
+  const requiresObligations = String(data.schema_version) === '1.6';
+  const obligationChecks = validateChapterObligationChecks(data.chapter_obligation_checks, obligations, manuscript, chapter, requiresObligations);
   if (!Array.isArray(data.issues)) invalid('Reader review issues must be an array', { chapter });
   const seen = new Set();
   for (const [index, issue] of data.issues.entries()) {
@@ -293,14 +331,16 @@ function validateData(data, manuscript, chapter, minScore, rules = [], signals =
   const characterFailures = characterChecks.filter((check) => check.verdict === 'fail');
   const editorialFailures = editorialChecks.filter((check) => check.verdict === 'fail');
   const hookFailures = hookChecks.filter((check) => check.verdict === 'fail');
+  const obligationFailures = obligationChecks.filter((check) => check.verdict === 'fail');
   if (data.verdict === 'pass' && feedbackFailures.length) invalid('Pass review cannot fail a due feedback rule', { chapter, failed_rule_ids: feedbackFailures.map((check) => check.id) });
   if (data.verdict === 'pass' && styleFailures.length) invalid('Pass review cannot fail a due style signal', { chapter, failed_signal_ids: styleFailures.map((check) => check.id) });
   if (data.verdict === 'pass' && characterFailures.length) invalid('Pass review cannot fail a due character contract', { chapter, failed_character_ids: characterFailures.map((check) => check.id) });
   if (data.verdict === 'pass' && editorialFailures.length) invalid('Pass review cannot fail an editorial dimension', { chapter, failed_dimension_ids: editorialFailures.map((check) => check.id) });
   if (data.verdict === 'pass' && hookFailures.length) invalid('Pass review cannot fail a must-advance hook', { chapter, failed_hook_ids: hookFailures.map((check) => check.id) });
-  const shouldRevise = data.verdict === 'revise' || lowScores.length > 0 || criticalIssues.length > 0 || missingScene.length > 0 || feedbackFailures.length > 0 || styleFailures.length > 0 || characterFailures.length > 0 || editorialFailures.length > 0 || hookFailures.length > 0;
+  if (data.verdict === 'pass' && obligationFailures.length) invalid('Pass review cannot fail a binding chapter obligation', { chapter, failed_obligation_ids: obligationFailures.map((check) => check.id) });
+  const shouldRevise = data.verdict === 'revise' || lowScores.length > 0 || criticalIssues.length > 0 || missingScene.length > 0 || feedbackFailures.length > 0 || styleFailures.length > 0 || characterFailures.length > 0 || editorialFailures.length > 0 || hookFailures.length > 0 || obligationFailures.length > 0;
   return {
-    schema_version: '1.5',
+    schema_version: '1.6',
     chapter: Number(chapter),
     reviewer_id: String(data.reviewer_id).trim(),
     verdict: data.verdict,
@@ -322,6 +362,9 @@ function validateData(data, manuscript, chapter, minScore, rules = [], signals =
     hook_agenda_checks: hookChecks,
     must_advance_hooks_due: mustAdvance.map((hook) => ({ id: hook.id, content: hook.content, last_advanced_chapter: hook.last_advanced_chapter, payoff_deadline_chapter: hook.payoff_deadline_chapter })),
     hook_agenda_failures: hookFailures.map((check) => check.id),
+    chapter_obligation_checks: obligationChecks,
+    chapter_obligations_due: obligations.map((item) => ({ id: item.id, field: item.field, phase: item.phase, obligation: item.obligation })),
+    chapter_obligation_failures: obligationFailures.map((check) => check.id),
     issues: data.issues.map((issue) => ({ code: String(issue.code).trim(), severity: issue.severity, evidence: String(issue.evidence).trim(), repair: String(issue.repair).trim() })),
     summary: String(data.summary || '').trim(),
     review_of: manuscript.relative,
@@ -347,7 +390,8 @@ function validate(projectInput, options = {}) {
   const rules = feedbackRules.due(project, chapter);
   const signals = styleContract.due(project, chapter);
   const characters = characterContract.due(project, chapter, manuscript.body);
-  const data = validateData(raw, manuscript, chapter, options['min-score'] ?? options.minScore, rules, signals, characters);
+  const obligations = String(raw?.schema_version || '') === '1.6' ? chapterObligations(project, chapter) : [];
+  const data = validateData(raw, manuscript, chapter, options['min-score'] ?? options.minScore, rules, signals, characters, obligations);
   atomicWrite(review.absolute, `${JSON.stringify(data, null, 2)}\n`);
   return { ok: true, project, file: review.relative, data };
 }
@@ -364,4 +408,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-reader-review'); }
 }
 
-module.exports = { REQUIRED_SCORES, REQUIRED_SCENE_EVIDENCE, PRESSURES, HOOK_TYPES, PAYOFF_TYPES, FEEDBACK_RULE_VERDICTS, STYLE_SIGNAL_VERDICTS, CHARACTER_CONTRACT_VERDICTS, EDITORIAL_DIMENSION_VERDICTS, EDITORIAL_DIMENSIONS, HOOK_AGENDA_VERDICTS, argsOf, chapterId, manuscriptOf, reviewPath, validateSceneEvidence, validateRhythm, validateFeedbackRuleChecks, validateStyleSignalChecks, validateCharacterContractChecks, validateEditorialDimensionChecks, validateHookAgendaChecks, validateData, validate, run };
+module.exports = { REQUIRED_SCORES, REQUIRED_SCENE_EVIDENCE, PRESSURES, HOOK_TYPES, PAYOFF_TYPES, FEEDBACK_RULE_VERDICTS, STYLE_SIGNAL_VERDICTS, CHARACTER_CONTRACT_VERDICTS, EDITORIAL_DIMENSION_VERDICTS, EDITORIAL_DIMENSIONS, HOOK_AGENDA_VERDICTS, CHAPTER_OBLIGATION_VERDICTS, argsOf, chapterId, manuscriptOf, reviewPath, validateSceneEvidence, validateRhythm, validateFeedbackRuleChecks, validateStyleSignalChecks, validateCharacterContractChecks, validateEditorialDimensionChecks, validateHookAgendaChecks, chapterObligations, validateChapterObligationChecks, validateData, validate, run };

@@ -24,13 +24,13 @@ function writeReport(project, chapter, round, value) {
   fs.writeFileSync(file, JSON.stringify({
     schema_version: '1.5', chapter, verdict: value.should_revise ? 'revise' : 'pass', should_revise: Boolean(value.should_revise),
     manuscript_sha256: `${chapter}-${round}`, scores: value.scores || { clarity: 7, continuation: 7, fanqie_fit: 7, character_agency: 7, payoff: 7 },
-    issues: value.issues || [], low_scores: value.low_scores || [], scene_missing: value.scene_missing || [], feedback_rule_failures: value.feedback_rule_failures || [], style_signal_failures: value.style_signal_failures || [], character_contract_failures: value.character_contract_failures || [], editorial_dimension_failures: value.editorial_dimension_failures || [], hook_agenda_failures: value.hook_agenda_failures || [],
+    issues: value.issues || [], low_scores: value.low_scores || [], scene_missing: value.scene_missing || [], feedback_rule_failures: value.feedback_rule_failures || [], style_signal_failures: value.style_signal_failures || [], character_contract_failures: value.character_contract_failures || [], editorial_dimension_failures: value.editorial_dimension_failures || [], hook_agenda_failures: value.hook_agenda_failures || [], chapter_obligation_failures: value.chapter_obligation_failures || [],
   }, null, 2), 'utf8');
 }
 
 test('repair debt preserves repeated failed-reader obligations even after a later accepted revision', () => {
   const project = projectOf();
-  const shared = { should_revise: true, low_scores: ['continuation'], scene_missing: ['payoff'], editorial_dimension_failures: ['outline_delivery'], issues: [{ code: 'PAYOFF_DELAYED' }] };
+  const shared = { should_revise: true, low_scores: ['continuation'], scene_missing: ['payoff'], editorial_dimension_failures: ['outline_delivery'], chapter_obligation_failures: ['beat_turn'], issues: [{ code: 'PAYOFF_DELAYED' }] };
   writeReport(project, 1, 1, shared);
   writeReport(project, 1, 2, shared);
   writeReport(project, 1, 3, { should_revise: false, scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 } });
@@ -44,10 +44,11 @@ test('repair debt preserves repeated failed-reader obligations even after a late
   assert.equal(repaired.final_status, 'repaired');
   assert.equal(repaired.root_cause, 'contract_delivery');
   assert.ok(repaired.repeated_debt_keys.includes('scene:payoff'));
+  assert.ok(repaired.repeated_delivery_keys.includes('obligation:beat_turn'));
   const drifting = result.ledger.entries.find((entry) => entry.chapter === 2);
   assert.equal(drifting.root_cause, 'diagnostic_drift');
   assert.equal(result.guidance.primary_root_cause, 'contract_delivery');
-  assert.match(result.guidance.recommendation, /goal, obstacle, turn, payoff, and hook/i);
+  assert.match(result.guidance.recommendation, /goal, obstacle, turn, cost, information, emotion, and hook/i);
   assert.ok(fs.existsSync(path.join(project, repairDebt.LEDGER_FILE)));
   assert.ok(fs.existsSync(path.join(project, repairDebt.GUIDANCE_FILE)));
 

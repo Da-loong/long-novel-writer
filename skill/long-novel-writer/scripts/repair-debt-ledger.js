@@ -89,6 +89,7 @@ function debtKeys(report) {
     ...(Array.isArray(report?.character_contract_failures) ? report.character_contract_failures.map((item) => `character:${String(item || '').trim()}`) : []),
     ...(Array.isArray(report?.editorial_dimension_failures) ? report.editorial_dimension_failures.map((item) => `editorial:${String(item || '').trim()}`) : []),
     ...(Array.isArray(report?.hook_agenda_failures) ? report.hook_agenda_failures.map((item) => `hook:${String(item || '').trim()}`) : []),
+    ...(Array.isArray(report?.chapter_obligation_failures) ? report.chapter_obligation_failures.map((item) => `obligation:${String(item || '').trim()}`) : []),
   ]);
 }
 
@@ -103,7 +104,7 @@ function rootCauseFor(rounds, budget) {
   const repeated = [];
   for (let index = 1; index < failed.length; index++) repeated.push(...intersections(failed[index - 1].debt_keys, failed[index].debt_keys));
   const repeatedKeys = unique(repeated);
-  const deliveryDebt = repeatedKeys.filter((key) => DELIVERY_KEYS.has(key));
+  const deliveryDebt = repeatedKeys.filter((key) => DELIVERY_KEYS.has(key) || key.startsWith('obligation:'));
   const exhausted = Boolean(final?.should_revise) && rounds.length >= budget + 1;
   const drift = failed.length >= 2 && repeatedKeys.length === 0;
   let primary = 'unknown';
@@ -152,7 +153,7 @@ function recommendationFor(root, topDebt) {
   const detail = topDebt?.key ? ` Prioritize ${topDebt.key} with literal on-page proof.` : '';
   return {
     repair_loop: `The same debt survives revision. Keep the repair scoped to the original failure instead of applying a generic language rewrite.${detail}`,
-    contract_delivery: `The assigned scene contract is repeatedly not landing. Before drafting, make goal, obstacle, turn, payoff, and hook visible in scene order; do not replace them with summary.${detail}`,
+    contract_delivery: `The assigned chapter contract is repeatedly not landing. Before drafting, make the exact goal, obstacle, turn, cost, information, emotion, and hook visible in scene order; do not replace them with summary.${detail}`,
     diagnostic_drift: `Repair changes the failing category instead of resolving it. Preserve the initial repair target and compare all debt keys before accepting the revision.${detail}`,
     budget_exhausted: `The bounded repair budget was exhausted. Rebuild the next attempt from the chapter card and exact failed debt, not from the last failed prose.${detail}`,
     unknown: 'No repeated repair debt is available. Follow the binding chapter card and cold-reader report.',

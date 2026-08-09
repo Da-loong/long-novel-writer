@@ -290,7 +290,7 @@ Before a chapter transaction, retain `settings/author-intent.md` as the long-ter
 
 ## Chapter card and bounded repair
 
-Every transaction creates `state/chapter-cards/ch-XXXX.json` from the beat, due foreshadowing, and character knowledge boundary, then puts it in the critical context tier. The chapter agent follows its three-scene delivery contract. When deterministic draft findings occur, the runner performs bounded Draft B/C repairs before the transaction commits, with every repair recorded in chapter QA. Read `references/operations/chapter-card-and-revision-loop.md`; use `scripts/chapter-card.js` build or validate commands when inspecting a chapter contract.
+Every transaction creates `state/chapter-cards/ch-XXXX.json` from the beat, due foreshadowing, and character knowledge boundary, then puts it in the critical context tier. In addition to a three-scene delivery contract, it compiles seven exact chapter obligations: assigned goal, obstacle, turn, cost, information, emotion, and end hook. When deterministic draft findings occur, the runner performs bounded Draft B/C repairs before the transaction commits, with every repair recorded in chapter QA. Read `references/operations/chapter-card-and-revision-loop.md` and `references/operations/chapter-obligation-loop.md`; use `scripts/chapter-card.js` build or validate commands when inspecting a chapter contract.
 
 ## Chapter cold-reader review
 
@@ -307,6 +307,10 @@ The report must also quote five reader-visible scene legs: protagonist goal,
 obstacle, turn, visible mini-payoff, and next-reading hook. A missing leg is
 revision debt and makes the chapter ineligible for a `pass` verdict, preventing
 an outline promise or a deferred threat from being counted as prose delivery.
+Schema `1.6` additionally requires one literal-evidence pass/fail check for
+every exact chapter-card obligation. A generic scene goal or generic cliffhanger
+does not prove the assigned goal, turn, cost, information, emotion, or hook;
+any failed obligation returns the chapter to the same bounded repair loop.
 
 ## Evidence-bound chapter facts
 
@@ -405,7 +409,7 @@ chapter card, Canon, or evidence gates. Read
 
 ## Focused editorial dimensions
 
-The unattended cold-reader report uses schema `1.5` and includes eight
+The unattended cold-reader report uses schema `1.6` and includes eight
 literal-evidence editorial dimensions: character consistency, information
 boundary, causal chain, outline delivery, dialogue tension,
 action-over-summary, canon continuity, and next-read boundary. A failed
@@ -416,7 +420,7 @@ reader schema, revision selection, or chapter quality policy.
 
 ## Hook-debt agenda
 
-`hook-agenda.js` turns observed foreshadowing progress into a compact next-chapter obligation. It prioritizes stale promises, near payoff deadlines, and recently advanced hooks that are ready for resolution; it freezes no more than two `must_advance` IDs with the chapter transaction. The agenda joins critical context, and cold-reader schema 1.5 requires literal prose proof that each due ID received a concrete escalation, clue, consequence, or payoff.
+`hook-agenda.js` turns observed foreshadowing progress into a compact next-chapter obligation. It prioritizes stale promises, near payoff deadlines, and recently advanced hooks that are ready for resolution; it freezes no more than two `must_advance` IDs with the chapter transaction. The agenda joins critical context, and cold-reader schema 1.6 requires literal prose proof that each due ID received a concrete escalation, clue, consequence, or payoff.
 
 `references/operations/hook-agenda-loop.md`
 

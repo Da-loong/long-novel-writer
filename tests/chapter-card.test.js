@@ -32,6 +32,8 @@ test('chapter card binds a beat, knowledge boundary, due foreshadowing, and scen
   assert.equal(result.card.character_knowledge_boundary.known_information, 'knows the receipt is hidden');
   assert.deepEqual(result.card.foreshadowing_due, [{ id: 'F-01', kind: 'setup', content: 'the receipt', deadline: null }]);
   assert.equal(result.card.scene_contract.length, 3);
+  assert.equal(result.card.chapter_obligations.length, 7);
+  assert.equal(result.card.chapter_obligations.find((item) => item.id === 'beat_turn').obligation.includes('receipt names a witness'), true);
   assert.match(result.card.reader_experience_contract.reader_question, /get the receipt/);
   assert.match(result.card.reader_experience_contract.visible_payoff, /witness is inside/);
   assert.match(result.card.reader_experience_contract.net_change, /loses the safe route/);
@@ -44,6 +46,11 @@ test('chapter card binds a beat, knowledge boundary, due foreshadowing, and scen
   delete saved.reader_experience_contract.visible_payoff;
   fs.writeFileSync(cardFile, JSON.stringify(saved, null, 2), 'utf8');
   assert.ok(card.validate(project, { chapter: '1' }).errors.some((item) => item.code === 'CHAPTER_CARD_READER_EXPERIENCE_MISSING' && item.field === 'visible_payoff'));
+  card.write(project, { chapter: '1' });
+  const rebuilt = JSON.parse(fs.readFileSync(cardFile, 'utf8'));
+  rebuilt.chapter_obligations = rebuilt.chapter_obligations.filter((item) => item.id !== 'beat_cost');
+  fs.writeFileSync(cardFile, JSON.stringify(rebuilt, null, 2), 'utf8');
+  assert.ok(card.validate(project, { chapter: '1' }).errors.some((item) => item.code === 'CHAPTER_CARD_OBLIGATION_MISSING' && item.id === 'beat_cost'));
   card.write(project, { chapter: '1' });
   const pack = contextBuild(project, { chapter: '1', budget: '12000' });
   assert.ok(pack.manifest.sources.some((item) => item.path === 'state/chapter-cards/ch-0001.json' && item.tier === 'critical'));

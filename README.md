@@ -138,7 +138,7 @@ The context-pack manifest reports critical, recent, warm, and cold-retrieved bud
 
 ## Chapter contracts and automatic repair
 
-Before every chapter transaction, the skill creates a hash-backed chapter card containing the beat, current character knowledge boundary, due foreshadowing, three-scene delivery contract, and acceptance checks. A failed deterministic quality gate triggers up to `chapter_revision_passes` bounded Draft B/C repair calls inside the same transaction; every repair prompt, transcript, and final QA result remains in the book directory.
+Before every chapter transaction, the skill creates a hash-backed chapter card containing the beat, current character knowledge boundary, due foreshadowing, a three-scene delivery contract, and seven exact obligations (goal, obstacle, turn, cost, information, emotion, and end hook). A failed deterministic quality gate triggers up to `chapter_revision_passes` bounded Draft B/C repair calls inside the same transaction; every repair prompt, transcript, and final QA result remains in the book directory.
 
 ```powershell
 node "$skill\scripts\chapter-card.js" build .\BOOK --chapter 12
@@ -154,9 +154,12 @@ the validator records the reviewed manuscript SHA-256 and rejects fabricated
 evidence. It additionally requires literal proof that the prose delivers the
 chapter's goal, obstacle, turn, visible mini-payoff, and next-reading hook; an
 absent leg blocks a `pass` verdict. A threat deferred to the next chapter does
-not count as this chapter's payoff. A weak score, critical issue, missing scene
-leg, or `revise` verdict enters the existing bounded Draft B/C repair loop and
-receives a fresh review round.
+not count as this chapter's payoff. Cold-reader schema `1.6` also checks every
+exact obligation from the binding chapter card against a literal passage, so a
+chapter with a generic action scene cannot silently replace its assigned beat.
+A weak score, critical issue, missing scene leg, failed chapter obligation, or
+`revise` verdict enters the existing bounded Draft B/C repair loop and receives
+a fresh review round.
 
 ```powershell
 node "$skill\scripts\chapter-reader-review.js" validate .\BOOK --chapter 12 --file .\BOOK\analysis\chapter-reader-review-ch0012-r01.json
