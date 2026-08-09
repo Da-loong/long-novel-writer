@@ -165,7 +165,7 @@ function crawl4aiLocal(args) {
   const script = path.join(__dirname, 'crawl4ai-rank-scan.py');
   const out = path.resolve(project, args.out || 'analysis/ranking-snapshot.json');
   const evidence = path.resolve(project, args.evidence || 'evidence/snapshots');
-  const command = String(args.python || 'python');
+  const command = String(args.python || settings.python || 'python');
   const childArgs = [script, '--out', out, '--evidence-dir', evidence, '--min-sample', String(settings.min_sample || 10), '--pages', ...pages];
   if (settings.cdp) childArgs.push('--cdp', String(settings.cdp));
   if (settings.persistent_dir) childArgs.push('--persistent-dir', String(settings.persistent_dir));
