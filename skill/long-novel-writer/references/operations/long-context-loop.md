@@ -8,7 +8,7 @@
 
 `context-pack.js` rebuilds `state/context-pack.md` before each transaction. It uses this priority order:
 
-1. critical compass, reader/platform contracts, target beat, current state, unresolved hooks, derived foreshadowing index, target resource window, and quality guidance;
+1. critical compass, reader/platform contracts, target beat, current state, unresolved hooks, derived foreshadowing index, target resource window, quality guidance, and repair-debt guidance;
 2. the recent manuscript window;
 3. current character/timeline state and warm canon;
 4. older relevant chapter capsules.
@@ -59,3 +59,13 @@ brief identifies a weak reader-experience dimension from hash-matched accepted
 reports. It guides scene execution but cannot override the card, Canon, or
 reader contract. Read `references/operations/quality-trend-loop.md` before
 changing thresholds or using the trend in a repair prompt.
+
+## Repair-debt guidance
+
+`repair-debt-ledger.js` reads all saved reader-review rounds, including failed
+rounds later masked by an accepted revision. Its compact guidance records a
+repeated repair-loop, delivery-contract debt, diagnostic drift, or exhausted
+revision budget. It is frozen alongside the quality trend before drafting and
+refreshed after a committed or failed attempt. It informs process focus only;
+the chapter card and evidence gates still control story facts. Read
+`references/operations/repair-debt-loop.md` before changing its categories.

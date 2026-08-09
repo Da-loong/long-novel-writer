@@ -102,6 +102,24 @@ function qualityGuidanceOf(project, chapter) {
   }
 }
 
+function repairDebtGuidanceOf(project, chapter) {
+  const source = 'state/repair-debt-guidance.json';
+  const text = readText(project, source);
+  if (!text) return { source, target_chapter: null, primary_root_cause: 'unknown', recommendation: '', unresolved_chapters: [] };
+  try {
+    const data = JSON.parse(text);
+    return {
+      source,
+      target_chapter: Number(data.target_chapter || 0) || null,
+      primary_root_cause: String(data.primary_root_cause || 'unknown'),
+      recommendation: String(data.recommendation || ''),
+      unresolved_chapters: Array.isArray(data.unresolved_chapters) ? data.unresolved_chapters : [],
+    };
+  } catch (error) {
+    throw new CliError('CHAPTER_CARD_REPAIR_DEBT_GUIDANCE_INVALID', 'Repair debt guidance JSON is invalid', { source, message: error.message });
+  }
+}
+
 function sourceHashes(project, paths) {
   return paths.filter((relative) => fs.existsSync(path.join(project, relative))).map((relative) => ({ path: relative, sha256: sha256(readText(project, relative)) }));
 }
@@ -133,9 +151,10 @@ function build(projectInput, options = {}) {
   const foreshadowing = dueForeshadowing(project, chapter);
   const resourceWindow = resourceWindowOf(project, chapter);
   const qualityGuidance = qualityGuidanceOf(project, chapter);
+  const repairDebtGuidance = repairDebtGuidanceOf(project, chapter);
   const sources = [
     'settings/author-intent.md', 'state/current-focus.md', 'settings/reader-contract.md', 'settings/platform-contract.md',
-    'outline/chapter-beats.md', 'state/current-state.md', 'state/character-state.md', 'state/character-contracts.json', 'state/style-contract.json', 'state/unresolved-hooks.md', foreshadowing.source, resourceWindow.source, qualityGuidance.source,
+    'outline/chapter-beats.md', 'state/current-state.md', 'state/character-state.md', 'state/character-contracts.json', 'state/style-contract.json', 'state/unresolved-hooks.md', foreshadowing.source, resourceWindow.source, qualityGuidance.source, repairDebtGuidance.source,
   ];
   const card = {
     schema_version: '1.0', generated_at: new Date().toISOString(), chapter, status: errors.length ? 'blocked' : 'ready',
@@ -153,6 +172,7 @@ function build(projectInput, options = {}) {
     foreshadowing_due: foreshadowing.due,
     resource_window: resourceWindow,
     quality_guidance: qualityGuidance,
+    repair_debt_guidance: repairDebtGuidance,
     drafting_protocol: {
       draft_a: 'Deliver the beat through visible scene action and preserve the knowledge boundary.',
       draft_b: 'Repair causal, character, pacing, and information-boundary findings before final delivery.',
@@ -207,4 +227,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-card'); }
 }
 
-module.exports = { CARD_DIR, REQUIRED_BEAT_FIELDS, REQUIRED_READER_EXPERIENCE_FIELDS, argsOf, cellsOf, tableRows, beatOf, knowledgeOf, dueForeshadowing, resourceWindowOf, qualityGuidanceOf, sourceHashes, cardFile, readerExperienceOf, build, write, validate, run };
+module.exports = { CARD_DIR, REQUIRED_BEAT_FIELDS, REQUIRED_READER_EXPERIENCE_FIELDS, argsOf, cellsOf, tableRows, beatOf, knowledgeOf, dueForeshadowing, resourceWindowOf, qualityGuidanceOf, repairDebtGuidanceOf, sourceHashes, cardFile, readerExperienceOf, build, write, validate, run };

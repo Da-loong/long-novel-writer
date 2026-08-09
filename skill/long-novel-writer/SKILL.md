@@ -390,6 +390,19 @@ chapter card, Canon, or reader/platform contracts. Read
 `references/operations/quality-trend-loop.md`; inspect with
 `scripts/quality-trend-ledger.js` with the `audit <PROJECT>` command.
 
+## Repair-debt attribution
+
+Do not let a later accepted revision erase the record of what the production
+loop repeatedly had to repair. `scripts/repair-debt-ledger.js` derives
+`state/repair-debt-ledger.json` and a compact `state/repair-debt-guidance.json`
+from all saved cold-reader rounds. It classifies repeated repair debt,
+scene-contract delivery debt, diagnostic drift, and exhausted revision budgets.
+The transaction freezes the guidance into context and the chapter card; failed
+attempts refresh it before retry. It remains advisory and cannot bypass the
+chapter card, Canon, or evidence gates. Read
+`references/operations/repair-debt-loop.md`; run
+`scripts/repair-debt-ledger.js` with the `audit <PROJECT>` command.
+
 ## Focused editorial dimensions
 
 The unattended cold-reader report uses schema `1.5` and includes eight

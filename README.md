@@ -271,3 +271,18 @@ Canon.
 node "$skill\scripts\quality-trend-ledger.js" audit .\BOOK
 node "$skill\scripts\quality-trend-ledger.js" update .\BOOK --chapter 13
 ```
+
+## Repair-debt attribution
+
+The final accepted revision no longer hides initial-draft failures. The new
+`state/repair-debt-ledger.json` aggregates all saved cold-reader rounds and
+classifies repeated repair debt, scene-contract delivery failures, diagnostic
+drift, and exhausted revision budgets. Its compact
+`state/repair-debt-guidance.json` is refreshed on commit and failed attempts,
+then frozen into the next transaction so the writer prevents a known failure
+instead of repeatedly applying generic language repair.
+
+```powershell
+node "$skill\scripts\repair-debt-ledger.js" audit .\BOOK
+node "$skill\scripts\repair-debt-ledger.js" update .\BOOK --chapter 13
+```

@@ -151,6 +151,9 @@ test('chapter attempt failure is retried without advancing project state', () =>
   assert.equal(report.current_chapter, 1);
   const events = fs.readFileSync(path.join(project, 'state', 'autopilot-run-ledger.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
   assert.ok(events.some((item) => item.type === 'chapter_attempt_failed' && item.attempt === 1));
+  assert.ok(events.some((item) => item.type === 'repair_debt_refreshed' && item.attempt === 1));
+  const repairDebt = JSON.parse(fs.readFileSync(path.join(project, 'state', 'repair-debt-ledger.json'), 'utf8'));
+  assert.equal(repairDebt.entries.length, 0);
   assert.equal(JSON.parse(fs.readFileSync(path.join(project, 'state', 'project-state.json'), 'utf8')).updated_through, 1);
 });
 

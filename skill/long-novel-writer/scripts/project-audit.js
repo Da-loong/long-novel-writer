@@ -44,6 +44,8 @@ const TRACKED = [
   'state/pacing-ledger.json',
   'state/quality-trend-ledger.json',
   'state/quality-guidance.json',
+  'state/repair-debt-ledger.json',
+  'state/repair-debt-guidance.json',
 ];
 
 function argsOf(argv) {
