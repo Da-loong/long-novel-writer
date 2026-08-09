@@ -333,10 +333,10 @@ function readerReviewPrompt(project, chapter, manuscript, output, minScore) {
     `Project root: ${project}`,
     `Read the manuscript ${relativePath(project, manuscript)}, its binding card state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, reader contract, platform contract, context pack, and current state.`,
     `Write strict JSON only to ${output}.`,
-    'Schema: {"schema_version":"1.0","chapter":number,"reviewer_id":string,"verdict":"pass|revise","scores":{"clarity":0..10,"continuation":0..10,"fanqie_fit":0..10,"character_agency":0..10,"payoff":0..10},"issues":[{"code":string,"severity":"critical|warning","evidence":string,"repair":string}],"summary":string}.',
+    'Schema: {"schema_version":"1.0","chapter":number,"reviewer_id":string,"verdict":"pass|revise","scores":{"clarity":0..10,"continuation":0..10,"fanqie_fit":0..10,"character_agency":0..10,"payoff":0..10},"scene_evidence":{"goal":{"status":"present|missing","evidence":string,"note":string},"obstacle":{"status":"present|missing","evidence":string,"note":string},"turn":{"status":"present|missing","evidence":string,"note":string},"hook":{"status":"present|missing","evidence":string,"note":string}},"issues":[{"code":string,"severity":"critical|warning","evidence":string,"repair":string}],"summary":string}.',
     `Every issue evidence must be an unmodified contiguous literal quote from the manuscript body. Use verdict "revise" for a reader-blocking problem; score each dimension honestly. Scores under ${minScore}, a critical issue, or verdict revise trigger an in-transaction repair.`,
     'Calibrate strictly: 6 means a comprehensible but generic AI-like chapter; 7 means a normal publishable serial chapter; 8 requires specific, scene-grounded execution that creates a real desire to continue. Do not use 8 or above merely because the chapter has a title, dialogue, or an unexplained danger.',
-    'Assess reader comprehension, desire to continue, Fanqie mobile-web-fiction feel, character agency, and whether this chapter delivers a concrete payoff. Do not praise the writer, invent quotes, or put commentary outside the JSON file.',
+    'For scene_evidence, prove from the actual prose that the protagonist pursues a goal, encounters an obstacle, makes or suffers a turn, and leaves a concrete next-reading hook. Mark any absent item missing with a concise note. Assess reader comprehension, desire to continue, Fanqie mobile-web-fiction feel, character agency, and whether this chapter delivers a concrete payoff. Do not praise the writer, invent quotes, or put commentary outside the JSON file.',
   ].join('\n');
 }
 
@@ -354,7 +354,7 @@ function readerReviewSummary(review, round) {
   return {
     enabled: true, round, file: review.relative, run_id: review.agent.run_id, verdict: report.verdict, scores: report.scores,
     review_of: report.review_of, manuscript_sha256: report.manuscript_sha256,
-    low_scores: report.low_scores, critical_issue_count: report.critical_issue_count, should_revise: report.should_revise,
+    low_scores: report.low_scores, critical_issue_count: report.critical_issue_count, scene_missing: report.scene_missing, should_revise: report.should_revise,
   };
 }
 
@@ -380,6 +380,7 @@ function candidateState(inspection, review) {
     reader_blocks: report?.should_revise ? 1 : 0,
     reader_critical_issues: Number(report?.critical_issue_count || 0),
     reader_low_scores: Number(report?.low_scores?.length || 0),
+    reader_scene_missing: Number(report?.scene_missing?.length || 0),
     reader_score: readerScore(review),
   };
 }
@@ -392,6 +393,8 @@ function chooseCandidate(previous, next) {
   if (next.reader_blocks > previous.reader_blocks) return { accepted: false, reason: 'reader_block_regressed', previous, next };
   if (next.reader_critical_issues < previous.reader_critical_issues) return { accepted: true, reason: 'critical_issue_count_reduced', previous, next };
   if (next.reader_critical_issues > previous.reader_critical_issues) return { accepted: false, reason: 'critical_issue_count_regressed', previous, next };
+  if (next.reader_scene_missing < previous.reader_scene_missing) return { accepted: true, reason: 'scene_evidence_gap_reduced', previous, next };
+  if (next.reader_scene_missing > previous.reader_scene_missing) return { accepted: false, reason: 'scene_evidence_gap_regressed', previous, next };
   if (next.reader_low_scores < previous.reader_low_scores) return { accepted: true, reason: 'low_score_count_reduced', previous, next };
   if (next.reader_low_scores > previous.reader_low_scores) return { accepted: false, reason: 'low_score_count_regressed', previous, next };
   if (Number.isFinite(next.reader_score) && Number.isFinite(previous.reader_score) && next.reader_score >= previous.reader_score + 0.25) return { accepted: true, reason: 'reader_score_improved', previous, next };
@@ -418,6 +421,7 @@ function buildRevisionBrief(project, chapter, pass, inspection, review) {
   const relative = `analysis/chapter-revision-brief-ch${String(chapter).padStart(4, '0')}-r${String(pass).padStart(2, '0')}.md`;
   const report = review?.report || null;
   const issues = [...(report?.issues || [])].sort((left, right) => (left.severity === 'critical' ? -1 : 0) - (right.severity === 'critical' ? -1 : 0));
+  const sceneProblems = (report?.scene_missing || []).map((key) => `- Missing ${key} evidence: make the ${key} legible in a scene and preserve its literal proof for the next review.`);
   const readerProblems = issues.length
     ? issues.map((issue, index) => `${index + 1}. [${issue.severity}/${issue.code}] Evidence: “${issue.evidence}”\n   Repair: ${issue.repair}`).join('\n')
     : (report?.low_scores || []).map((key, index) => `${index + 1}. Raise ${key}; the cold reader scored it ${report.scores[key]}/10.`).join('\n') || 'No reader issue was supplied; repair the deterministic findings only.';
@@ -438,7 +442,7 @@ function buildRevisionBrief(project, chapter, pass, inspection, review) {
     '',
     '## Repair in priority order',
     '',
-    readerProblems,
+    [readerProblems, ...sceneProblems].filter(Boolean).join('\n'),
     '',
     '## Deterministic findings',
     '',

@@ -301,6 +301,11 @@ same chapter transaction. A chapter with an unresolved report never commits.
 Read `references/operations/chapter-reader-review-loop.md`; validate one report
 with `scripts/chapter-reader-review.js`.
 
+The report must also quote four reader-visible scene legs: protagonist goal,
+obstacle, turn, and next-reading hook. A missing leg is revision debt and makes
+the chapter ineligible for a `pass` verdict, preventing an outline promise from
+being counted as prose delivery.
+
 Every repair starts from a snapshot, receives a deterministic repair brief, and
 is kept only when its deterministic debt or cold-reader evidence measurably
 improves. A plateau restores the prior manuscript and leaves the chapter open

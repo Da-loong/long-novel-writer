@@ -25,6 +25,12 @@ function report(overrides = {}) {
   return {
     schema_version: '1.0', chapter: 1, reviewer_id: 'reader-fixture', verdict: 'pass',
     scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 },
+    scene_evidence: {
+      goal: { status: 'present', evidence: '林越把欠条按在柜台上，雨水顺着他的手背滴落。', note: 'The objective is visible in action.' },
+      obstacle: { status: 'present', evidence: '巷口的人没有散，反而把退路堵住了。', note: 'The opposition closes the exit.' },
+      turn: { status: 'present', evidence: '林越把欠条按在柜台上，雨水顺着他的手背滴落。', note: 'The public commitment changes the situation.' },
+      hook: { status: 'present', evidence: '巷口的人没有散，反而把退路堵住了。', note: 'The blocked exit leaves an immediate question.' },
+    },
     issues: [], summary: 'Clear scene pressure.', ...overrides,
   };
 }
@@ -54,6 +60,25 @@ test('chapter reader review rejects fabricated evidence and inconsistent pass ve
   assert.throws(() => readerReview.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_READER_REVIEW_INVALID');
   fs.writeFileSync(path.join(project, relative), JSON.stringify(report({
     issues: [{ code: 'FABRICATED', severity: 'critical', evidence: '这句话不在正文里。', repair: 'Use an actual quote.' }],
+  }), null, 2), 'utf8');
+  assert.throws(() => readerReview.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_READER_REVIEW_INVALID');
+});
+
+test('missing scene evidence forces revision and blocks a pass verdict', () => {
+  const project = fixtureProject();
+  const relative = 'analysis/chapter-reader-review-ch0001-r01.json';
+  const incomplete = {
+    ...report().scene_evidence,
+    hook: { status: 'missing', evidence: '', note: 'The ending creates no concrete next-reading question.' },
+  };
+  fs.writeFileSync(path.join(project, relative), JSON.stringify(report({
+    verdict: 'revise', scene_evidence: incomplete,
+  }), null, 2), 'utf8');
+  const result = readerReview.validate(project, { chapter: '1', file: relative });
+  assert.equal(result.data.should_revise, true);
+  assert.deepEqual(result.data.scene_missing, ['hook']);
+  fs.writeFileSync(path.join(project, relative), JSON.stringify(report({
+    verdict: 'pass', scene_evidence: incomplete,
   }), null, 2), 'utf8');
   assert.throws(() => readerReview.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_READER_REVIEW_INVALID');
 });

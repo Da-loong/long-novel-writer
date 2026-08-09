@@ -19,6 +19,15 @@ function projectOf() {
   return JSON.parse(result.stdout).project;
 }
 
+function sceneEvidence(chapter) {
+  return {
+    goal: { status: 'present', evidence: `林越把第${chapter}张欠条拍在柜台上。`, note: 'The immediate objective is visible.' },
+    obstacle: { status: 'present', evidence: '“今天给答案。”', note: 'The demanded answer creates pressure.' },
+    turn: { status: 'present', evidence: '选择1落下，林越抓起旧秤走向亮着灯的巷口', note: 'The protagonist commits to a changed course.' },
+    hook: { status: 'present', evidence: '这一步把下一次选择的代价摆到了所有人面前。', note: 'The next cost is unresolved.' },
+  };
+}
+
 function fakeAgent(request) {
   const write = (relative, content) => {
     const file = path.join(request.project, relative);
@@ -50,6 +59,7 @@ function fakeAgent(request) {
     write(output, JSON.stringify({
       schema_version: '1.0', chapter, reviewer_id: 'fixture-cold-reader', verdict: 'pass',
       scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 },
+      scene_evidence: sceneEvidence(chapter),
       issues: [], summary: 'The chapter has a clear pressure change and a next-reading question.',
     }, null, 2));
   } else if (request.task === 'polish') {
@@ -122,7 +132,12 @@ test('autopilot repairs a failed draft inside the active chapter transaction', (
     if (request.task === 'mvp') {
       const result = fakeAgent(request);
       const chapterFile = fs.readdirSync(path.join(request.project, 'manuscript')).find((name) => /^ch-\d{4}-.+\.md$/i.test(name));
-      fs.writeFileSync(path.join(request.project, 'manuscript', chapterFile), '# Broken draft\n\n[TODO]\n', 'utf8');
+      fs.writeFileSync(path.join(request.project, 'manuscript', chapterFile), [
+        '# Broken draft', '', '[TODO]', '',
+        '林越把第1张欠条拍在柜台上。', '', '“今天给答案。”', '',
+        '选择1落下，林越抓起旧秤走向亮着灯的巷口。', '',
+        '这一步把下一次选择的代价摆到了所有人面前。', '',
+      ].join('\n'), 'utf8');
       return result;
     }
     if (request.task === 'mvp-structure-revise') return fakeAgent({ ...request, task: 'mvp' });
@@ -151,12 +166,13 @@ test('cold-reader evidence triggers an in-transaction repair even when determini
         ? {
           schema_version: '1.0', chapter, reviewer_id: 'fixture-cold-reader', verdict: 'revise',
           scores: { clarity: 6, continuation: 6, fanqie_fit: 6, character_agency: 8, payoff: 6 },
+          scene_evidence: sceneEvidence(chapter),
           issues: [{ code: 'FLAT_TENSION', severity: 'warning', evidence: '林越把第1张欠条拍在柜台上。', repair: 'Make the consequence of the choice sharper in the next draft.' }],
           summary: 'The scene is understandable but lacks enough immediate pull.',
         }
         : {
           schema_version: '1.0', chapter, reviewer_id: 'fixture-cold-reader', verdict: 'pass',
-          scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 }, issues: [], summary: 'Repair addressed the reader concern.',
+          scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 }, scene_evidence: sceneEvidence(chapter), issues: [], summary: 'Repair addressed the reader concern.',
         };
       const file = path.join(request.project, output);
       fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -200,6 +216,7 @@ test('unimproved cold-reader repair is discarded and leaves the previous draft a
       fs.writeFileSync(file, JSON.stringify({
         schema_version: '1.0', chapter, reviewer_id: 'plateau-reader', verdict: 'revise',
         scores: { clarity: 6, continuation: 6, fanqie_fit: 6, character_agency: 8, payoff: 6 },
+        scene_evidence: sceneEvidence(chapter),
         issues: [{ code: 'FLAT_TENSION', severity: 'warning', evidence: '林越把第1张欠条拍在柜台上。', repair: 'Create a sharper consequence.' }],
         summary: 'The candidate remains too generic.',
       }, null, 2), 'utf8');

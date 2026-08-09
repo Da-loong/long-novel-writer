@@ -11,8 +11,10 @@ const path = require('path');
 const { CliError, emitError, atomicWrite } = require('./cap-utils');
 
 const REQUIRED_SCORES = ['clarity', 'continuation', 'fanqie_fit', 'character_agency', 'payoff'];
+const REQUIRED_SCENE_EVIDENCE = ['goal', 'obstacle', 'turn', 'hook'];
 const VERDICTS = new Set(['pass', 'revise']);
 const SEVERITIES = new Set(['critical', 'warning']);
+const SCENE_STATUSES = new Set(['present', 'missing']);
 
 function argsOf(argv) {
   const args = {};
@@ -61,6 +63,23 @@ function reviewPath(project, chapter, file) {
 
 function invalid(message, details) { throw new CliError('CHAPTER_READER_REVIEW_INVALID', message, details); }
 
+function validateSceneEvidence(value, manuscript, chapter) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Reader review scene_evidence object is required', { chapter });
+  const result = {};
+  for (const key of REQUIRED_SCENE_EVIDENCE) {
+    const item = value[key];
+    if (!item || typeof item !== 'object' || Array.isArray(item)) invalid(`Reader review scene_evidence.${key} is required`, { chapter, key });
+    const status = String(item.status || '').trim();
+    const evidence = String(item.evidence || '').trim();
+    const note = String(item.note || '').trim();
+    if (!SCENE_STATUSES.has(status)) invalid(`Reader review scene_evidence.${key}.status is invalid`, { chapter, key, status });
+    if (status === 'present' && (!evidence || !manuscript.body.includes(evidence))) invalid(`Reader review scene_evidence.${key} must quote the manuscript`, { chapter, key, evidence });
+    if (status === 'missing' && !note) invalid(`Reader review scene_evidence.${key}.note is required when missing`, { chapter, key });
+    result[key] = { status, evidence: status === 'present' ? evidence : '', note };
+  }
+  return result;
+}
+
 function validateData(data, manuscript, chapter, minScore) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) invalid('Reader review must be a JSON object', { chapter });
   if (String(data.schema_version || '') !== '1.0') invalid('Reader review schema_version must be 1.0', { chapter, schema_version: data.schema_version });
@@ -73,6 +92,7 @@ function validateData(data, manuscript, chapter, minScore) {
     const score = Number(data.scores[key]);
     if (!Number.isFinite(score) || score < 0 || score > 10) invalid(`Reader review score is invalid: ${key}`, { chapter, key, score: data.scores[key] });
   }
+  const sceneEvidence = validateSceneEvidence(data.scene_evidence, manuscript, chapter);
   if (!Array.isArray(data.issues)) invalid('Reader review issues must be an array', { chapter });
   const seen = new Set();
   for (const [index, issue] of data.issues.entries()) {
@@ -87,17 +107,19 @@ function validateData(data, manuscript, chapter, minScore) {
     if (seen.has(key)) invalid('Reader review has duplicate issue evidence', { chapter, index, code, evidence });
     seen.add(key);
   }
-  if (data.verdict === 'pass' && data.issues.some((issue) => issue.severity === 'critical')) invalid('Pass review cannot include a critical issue', { chapter });
+  const missingScene = REQUIRED_SCENE_EVIDENCE.filter((key) => sceneEvidence[key].status === 'missing');
+  if (data.verdict === 'pass' && (data.issues.some((issue) => issue.severity === 'critical') || missingScene.length)) invalid('Pass review cannot include a critical issue or missing required scene evidence', { chapter, missing_scene: missingScene });
   const threshold = Number.isFinite(Number(minScore)) ? Number(minScore) : 7;
   const lowScores = REQUIRED_SCORES.filter((key) => Number(data.scores[key]) < threshold);
   const criticalIssues = data.issues.filter((issue) => issue.severity === 'critical');
-  const shouldRevise = data.verdict === 'revise' || lowScores.length > 0 || criticalIssues.length > 0;
+  const shouldRevise = data.verdict === 'revise' || lowScores.length > 0 || criticalIssues.length > 0 || missingScene.length > 0;
   return {
     schema_version: '1.0',
     chapter: Number(chapter),
     reviewer_id: String(data.reviewer_id).trim(),
     verdict: data.verdict,
     scores: Object.fromEntries(REQUIRED_SCORES.map((key) => [key, Number(data.scores[key])])),
+    scene_evidence: sceneEvidence,
     issues: data.issues.map((issue) => ({ code: String(issue.code).trim(), severity: issue.severity, evidence: String(issue.evidence).trim(), repair: String(issue.repair).trim() })),
     summary: String(data.summary || '').trim(),
     review_of: manuscript.relative,
@@ -105,6 +127,7 @@ function validateData(data, manuscript, chapter, minScore) {
     min_score: threshold,
     low_scores: lowScores,
     critical_issue_count: criticalIssues.length,
+    scene_missing: missingScene,
     should_revise: shouldRevise,
   };
 }
@@ -136,4 +159,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-reader-review'); }
 }
 
-module.exports = { REQUIRED_SCORES, argsOf, chapterId, manuscriptOf, reviewPath, validateData, validate, run };
+module.exports = { REQUIRED_SCORES, REQUIRED_SCENE_EVIDENCE, argsOf, chapterId, manuscriptOf, reviewPath, validateSceneEvidence, validateData, validate, run };
