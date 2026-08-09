@@ -8,6 +8,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const { CliError, emitError, parseRankInput, objectsDeep, normalizeBook, atomicWrite } = require('./cap-utils');
 
 function argsOf(argv) {
@@ -110,6 +111,7 @@ async function scrapeWithRetry(url, config, env, retry, timeoutMs) {
 
 async function main(argv = process.argv.slice(2), env = process.env) {
   const args = argsOf(argv);
+  if (args.adapter === 'crawl4ai') return crawl4aiLocal(args);
   if (!args.platform) throw new CliError('USAGE', 'Usage: node rank-scan.js --platform <platform> [--input FILE ... | --url URL ...] [--cache FILE] [--retry N] [--out FILE]');
   const config = platformConfig(args.platform);
   const inputs = valuesOf(args.input);
@@ -154,5 +156,25 @@ async function main(argv = process.argv.slice(2), env = process.env) {
   return snapshot;
 }
 
+function crawl4aiLocal(args) {
+  const project = path.resolve(String(args.project || ''));
+  if (!args.project || !fs.existsSync(path.join(project, 'settings', 'market-sources.json'))) throw new CliError('CRAWL4AI_PROJECT_REQUIRED', 'Crawl4AI adapter requires --project with settings/market-sources.json', { project });
+  const settings = JSON.parse(fs.readFileSync(path.join(project, 'settings', 'market-sources.json'), 'utf8').replace(/^\uFEFF/, ''));
+  const pages = Array.isArray(settings.pages) ? settings.pages.filter(Boolean) : [];
+  if (!pages.length) throw new CliError('CRAWL4AI_PAGES_REQUIRED', 'market-sources.json needs pages for Crawl4AI acquisition', { file: 'settings/market-sources.json' });
+  const script = path.join(__dirname, 'crawl4ai-rank-scan.py');
+  const out = path.resolve(project, args.out || 'analysis/ranking-snapshot.json');
+  const evidence = path.resolve(project, args.evidence || 'evidence/snapshots');
+  const command = String(args.python || 'python');
+  const childArgs = [script, '--out', out, '--evidence-dir', evidence, '--min-sample', String(settings.min_sample || 10), '--pages', ...pages];
+  if (settings.cdp) childArgs.push('--cdp', String(settings.cdp));
+  if (settings.persistent_dir) childArgs.push('--persistent-dir', String(settings.persistent_dir));
+  const result = spawnSync(command, childArgs, { cwd: project, encoding: 'utf8', shell: true, timeout: 900000, maxBuffer: 20 * 1024 * 1024, windowsHide: true });
+  if (result.error || result.status !== 0 || !fs.existsSync(out)) throw new CliError('CRAWL4AI_ACQUISITION_FAILED', 'Local Crawl4AI acquisition failed', { command, args: childArgs, status: result.status, stderr: String(result.stderr || result.error?.message || '').slice(-4000), stdout: String(result.stdout || '').slice(-2000) });
+  const snapshot = JSON.parse(fs.readFileSync(out, 'utf8').replace(/^\uFEFF/, ''));
+  if (!Array.isArray(snapshot.items) || snapshot.items.length < Number(settings.min_sample || 10)) throw new CliError('CRAWL4AI_SNAPSHOT_INVALID', 'Crawl4AI did not produce a sufficient normalized snapshot', { out, items: snapshot.items?.length || 0 });
+  process.stdout.write(`${JSON.stringify(snapshot, null, 2)}\n`); return snapshot;
+}
+
 if (require.main === module) main().catch((error) => { process.exitCode = emitError(error, 'rank-scan'); });
-module.exports = { argsOf, valuesOf, endpointOf, firecrawlRequest, validateRows, dedupeRows, readCache, scrapeOnce, scrapeWithRetry, main };
+module.exports = { argsOf, valuesOf, endpointOf, firecrawlRequest, validateRows, dedupeRows, readCache, scrapeOnce, scrapeWithRetry, crawl4aiLocal, main };
