@@ -9,6 +9,7 @@ const { build } = require('./context-pack');
 const { write: writeForeshadowingIndex } = require('./foreshadowing-index');
 const { compile: compileFeedbackRules, OUTPUT: FEEDBACK_RULES_FILE } = require('./feedback-rules');
 const { compile: compileStyleContract, OUTPUT: STYLE_CONTRACT_FILE } = require('./style-contract');
+const { compile: compileCharacterContracts, OUTPUT: CHARACTER_CONTRACTS_FILE } = require('./character-contract');
 const { write: writeChapterCard } = require('./chapter-card');
 const { capture: captureChapterMemory } = require('./chapter-memory');
 const { gate } = require('./chapter-gate');
@@ -50,8 +51,9 @@ function canonFiles(project) {
   if (fs.existsSync(outline)) for (const name of fs.readdirSync(outline)) {
     if (/^(?:master-outline|chapter-beats|volume(?:-|_).+)\.md$/i.test(name)) files.push(`outline/${name}`);
   }
-  const styleSignals = 'evidence/derivations/style-signals.md';
-  if (fs.existsSync(path.join(project, styleSignals))) files.push(styleSignals);
+  for (const artifact of ['evidence/derivations/style-signals.md', 'evidence/derivations/character-contracts.md']) {
+    if (fs.existsSync(path.join(project, artifact))) files.push(artifact);
+  }
   return files.sort();
 }
 
@@ -128,6 +130,7 @@ function begin(projectInput, options = {}) {
   const range = numericRange(options);
   const feedbackRules = compileFeedbackRules(project);
   const styleContract = compileStyleContract(project);
+  const characterContracts = compileCharacterContracts(project);
   const foreshadowing = writeForeshadowingIndex(project, { chapter: String(chapter) });
   if (foreshadowing.errors.length) return {
     ok: false, command: 'begin', project, chapter, transaction_written: false,
@@ -152,6 +155,7 @@ function begin(projectInput, options = {}) {
     context_pack: { path: 'state/context-pack.md', sha256: digestFile(contextPath), manifest: context.manifest },
     feedback_rules: { path: FEEDBACK_RULES_FILE, sha256: digestFile(path.join(project, FEEDBACK_RULES_FILE)), rule_count: feedbackRules.rule_count, warnings: feedbackRules.warnings },
     style_contract: { path: STYLE_CONTRACT_FILE, sha256: digestFile(path.join(project, STYLE_CONTRACT_FILE)), signal_count: styleContract.signal_count, warnings: styleContract.warnings },
+    character_contracts: { path: CHARACTER_CONTRACTS_FILE, sha256: digestFile(path.join(project, CHARACTER_CONTRACTS_FILE)), character_count: characterContracts.character_count, warnings: characterContracts.warnings },
     foreshadowing_index: { path: 'state/foreshadowing-index.json', sha256: digestFile(path.join(project, 'state', 'foreshadowing-index.json')), due: foreshadowing.due },
     chapter_card: { path: chapterCard.relative_output, sha256: digestFile(chapterCard.output), warnings: chapterCard.warnings },
     canon: canonManifest(project), last_result: { pre_gate_ok: true },

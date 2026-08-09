@@ -102,7 +102,7 @@ function build(projectInput, options = {}) {
   const foreshadowing = dueForeshadowing(project, chapter);
   const sources = [
     'settings/author-intent.md', 'state/current-focus.md', 'settings/reader-contract.md', 'settings/platform-contract.md',
-    'outline/chapter-beats.md', 'state/current-state.md', 'state/character-state.md', 'state/unresolved-hooks.md', foreshadowing.source,
+    'outline/chapter-beats.md', 'state/current-state.md', 'state/character-state.md', 'state/character-contracts.json', 'state/style-contract.json', 'state/unresolved-hooks.md', foreshadowing.source,
   ];
   const card = {
     schema_version: '1.0', generated_at: new Date().toISOString(), chapter, status: errors.length ? 'blocked' : 'ready',

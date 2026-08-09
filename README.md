@@ -10,7 +10,7 @@
 
 - 版本：`0.3.0-rc.1`
 - 初始基线：`7.5/10`
-- 当前仓库评测：`8.68/10`（112 项自动测试通过，并包含一次三读者前三章盲读前向运行）
+- 当前仓库评测：`8.68/10`（115 项自动测试通过，并包含一次三读者前三章盲读前向运行）
 - 发布门槛：任务级加权评测 `>= 8.5/10`，且无 P0、P1 未关闭问题
 - 支持环境：Windows、Linux；Node.js 20+
 - GitHub：公开仓库已建立；以 `main` 分支 CI 和发布门禁作为合并基线
@@ -228,6 +228,20 @@ from the contract.
 
 ```powershell
 node "$skill\scripts\style-contract.js" compile .\BOOK
+```
+
+## Character agency contract
+
+For every important character, the project can adopt a current goal, pressure,
+knowledge boundary, voice/action rule, and prohibited shortcut in
+`evidence/derivations/character-contracts.md`. The transaction compiles and
+locks `state/character-contracts.json`; it joins the critical context pack and
+the cold reader reviews each applicable on-page character using literal prose
+evidence. A character who acts with impossible knowledge, loses motivation, or
+speaks outside the adopted profile creates revision debt in the same chapter.
+
+```powershell
+node "$skill\scripts\character-contract.js" compile .\BOOK
 ```
 
 ## Cross-chapter pacing health

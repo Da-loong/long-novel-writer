@@ -350,6 +350,19 @@ in revision. Read `references/operations/style-contract-loop.md`; inspect with
 work's names, plot, distinctive wording, or private setting into the project
 style contract.
 
+## Character agency contract
+
+Turn each important character's current goal, pressure, knowledge boundary,
+voice/action constraint, and prohibited shortcut into an adopted row in
+`evidence/derivations/character-contracts.md`. The transaction compiles it to
+`state/character-contracts.json`, freezes the source hash, and puts it in the
+critical context tier. A cold reader checks every in-scope contract character
+actually named in the chapter; each `character_contract_checks` result needs a
+literal manuscript quote, and any failed role, knowledge, motivation, or voice
+check returns the chapter to revision. Read
+`references/operations/character-contract-loop.md`; inspect with
+`scripts/character-contract.js` using `compile <PROJECT>`.
+
 Every repair starts from a snapshot, receives a deterministic repair brief, and
 is kept only when its deterministic debt or cold-reader evidence measurably
 improves. A plateau restores the prior manuscript and leaves the chapter open

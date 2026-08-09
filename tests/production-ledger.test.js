@@ -40,6 +40,10 @@ test('begin transaction builds context and locks the chapter before drafting', (
     '# Style signals', '', '| ID | Dimension | Reusable signal | Evidence | Scope | Status |', '|---|---|---|---|---|---|',
     '| STYLE-OPEN | narrative | Open in action before exposition. | evidence/sources/source-index.md | opening | adopted |',
   ].join('\n'), 'utf8');
+  fs.writeFileSync(path.join(project, 'evidence', 'derivations', 'character-contracts.md'), [
+    '# Character contracts', '', '| Name | Goal | Pressure/motivation | Knowledge boundary | Voice/action | Forbidden | Scope | Status |', '|---|---|---|---|---|---|---|---|',
+    '| 林越 | 找到账本。 | 门外有人堵截。 | 只知道账本在柜台。 | 短句行动，少解释。 | 不得预知对手来历。 | opening | adopted |',
+  ].join('\n'), 'utf8');
   const report = begin(project, { chapter: '1', query: '林舟 账本', 'min-chars': '100', 'max-chars': '1200' });
   assert.equal(report.ok, true, JSON.stringify(report));
   assert.ok(fs.existsSync(path.join(project, 'state', 'context-pack.md')));
@@ -49,11 +53,15 @@ test('begin transaction builds context and locks the chapter before drafting', (
   assert.equal(current.transaction.phase, 'drafting');
   assert.equal(current.transaction.feedback_rules.rule_count, 1);
   assert.equal(current.transaction.style_contract.signal_count, 1);
+  assert.equal(current.transaction.character_contracts.character_count, 1);
   assert.ok(current.transaction.canon['evidence/derivations/style-signals.md']);
+  assert.ok(current.transaction.canon['evidence/derivations/character-contracts.md']);
   assert.ok(fs.existsSync(path.join(project, 'state', 'feedback-rules.json')));
   assert.ok(fs.existsSync(path.join(project, 'state', 'style-contract.json')));
+  assert.ok(fs.existsSync(path.join(project, 'state', 'character-contracts.json')));
   assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /feedback-rules\.json/);
   assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /style-contract\.json/);
+  assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /character-contracts\.json/);
   assert.equal(current.has_active_transaction, true);
   assert.equal(current.next_action, 'finish --chapter 1');
 });

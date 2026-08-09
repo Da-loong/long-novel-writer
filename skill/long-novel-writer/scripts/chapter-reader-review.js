@@ -11,6 +11,7 @@ const path = require('path');
 const { CliError, emitError, atomicWrite } = require('./cap-utils');
 const feedbackRules = require('./feedback-rules');
 const styleContract = require('./style-contract');
+const characterContract = require('./character-contract');
 
 const REQUIRED_SCORES = ['clarity', 'continuation', 'fanqie_fit', 'character_agency', 'payoff'];
 const REQUIRED_SCENE_EVIDENCE = ['goal', 'obstacle', 'turn', 'payoff', 'hook'];
@@ -22,6 +23,7 @@ const HOOK_TYPES = new Set(['risk', 'reveal', 'choice', 'deadline', 'reversal', 
 const PAYOFF_TYPES = new Set(['answer', 'win', 'loss', 'resource', 'relationship', 'information', 'survival', 'progress']);
 const FEEDBACK_RULE_VERDICTS = new Set(['pass', 'fail', 'not_applicable']);
 const STYLE_SIGNAL_VERDICTS = new Set(['pass', 'fail', 'not_applicable']);
+const CHARACTER_CONTRACT_VERDICTS = new Set(['pass', 'fail', 'not_applicable']);
 
 function argsOf(argv) {
   const args = {};
@@ -150,9 +152,36 @@ function validateStyleSignalChecks(value, signals, manuscript, chapter) {
   return checks;
 }
 
-function validateData(data, manuscript, chapter, minScore, rules = [], signals = []) {
+function validateCharacterContractChecks(value, characters, manuscript, chapter) {
+  const expected = Array.isArray(characters) ? characters : [];
+  if (value === undefined || value === null) {
+    if (expected.length) invalid('Reader review must check every due character contract', { chapter, due_character_ids: expected.map((character) => character.id) });
+    return [];
+  }
+  if (!Array.isArray(value)) invalid('Reader review character_contract_checks must be an array', { chapter });
+  const byId = new Map(expected.map((character) => [String(character.id), character]));
+  const seen = new Set();
+  const checks = value.map((check, index) => {
+    if (!check || typeof check !== 'object' || Array.isArray(check)) invalid('Character contract check must be an object', { chapter, index });
+    const id = String(check.id || '').trim();
+    const verdict = String(check.verdict || '').trim();
+    const evidence = String(check.evidence || '').trim();
+    const note = String(check.note || '').trim();
+    if (!byId.has(id) || seen.has(id)) invalid('Character contract check ID must match one due character exactly once', { chapter, index, id, due_character_ids: [...byId.keys()] });
+    if (!CHARACTER_CONTRACT_VERDICTS.has(verdict) || !note || note.length > 800) invalid('Character contract check needs a valid verdict and concise note', { chapter, index, id, verdict });
+    if (evidence && !manuscript.body.includes(evidence)) invalid('Character contract evidence must be a literal manuscript excerpt', { chapter, index, id, evidence });
+    if (verdict !== 'not_applicable' && !evidence) invalid('Applicable character contract check requires literal manuscript evidence', { chapter, index, id, verdict });
+    seen.add(id);
+    const character = byId.get(id);
+    return { id, verdict, evidence, note, name: character.name, goal: character.goal, knowledge_boundary: character.knowledge_boundary };
+  });
+  if (seen.size !== byId.size) invalid('Reader review is missing a due character contract check', { chapter, checked: [...seen], due_character_ids: [...byId.keys()] });
+  return checks;
+}
+
+function validateData(data, manuscript, chapter, minScore, rules = [], signals = [], characters = []) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) invalid('Reader review must be a JSON object', { chapter });
-  if (!['1.0', '1.1', '1.2'].includes(String(data.schema_version || ''))) invalid('Reader review schema_version must be 1.0, 1.1, or 1.2', { chapter, schema_version: data.schema_version });
+  if (!['1.0', '1.1', '1.2', '1.3'].includes(String(data.schema_version || ''))) invalid('Reader review schema_version must be 1.0, 1.1, 1.2, or 1.3', { chapter, schema_version: data.schema_version });
   if (Number(data.chapter) !== Number(chapter)) invalid('Reader review chapter does not match manuscript', { expected: Number(chapter), actual: data.chapter });
   if (!String(data.reviewer_id || '').trim()) invalid('Reader review reviewer_id is required', { chapter });
   if (!VERDICTS.has(data.verdict)) invalid('Reader review verdict must be pass or revise', { chapter, verdict: data.verdict });
@@ -166,6 +195,7 @@ function validateData(data, manuscript, chapter, minScore, rules = [], signals =
   const rhythm = validateRhythm(data.rhythm, chapter);
   const feedbackChecks = validateFeedbackRuleChecks(data.feedback_rule_checks, rules, manuscript, chapter);
   const styleChecks = validateStyleSignalChecks(data.style_signal_checks, signals, manuscript, chapter);
+  const characterChecks = validateCharacterContractChecks(data.character_contract_checks, characters, manuscript, chapter);
   if (!Array.isArray(data.issues)) invalid('Reader review issues must be an array', { chapter });
   const seen = new Set();
   for (const [index, issue] of data.issues.entries()) {
@@ -187,11 +217,13 @@ function validateData(data, manuscript, chapter, minScore, rules = [], signals =
   const criticalIssues = data.issues.filter((issue) => issue.severity === 'critical');
   const feedbackFailures = feedbackChecks.filter((check) => check.verdict === 'fail');
   const styleFailures = styleChecks.filter((check) => check.verdict === 'fail');
+  const characterFailures = characterChecks.filter((check) => check.verdict === 'fail');
   if (data.verdict === 'pass' && feedbackFailures.length) invalid('Pass review cannot fail a due feedback rule', { chapter, failed_rule_ids: feedbackFailures.map((check) => check.id) });
   if (data.verdict === 'pass' && styleFailures.length) invalid('Pass review cannot fail a due style signal', { chapter, failed_signal_ids: styleFailures.map((check) => check.id) });
-  const shouldRevise = data.verdict === 'revise' || lowScores.length > 0 || criticalIssues.length > 0 || missingScene.length > 0 || feedbackFailures.length > 0 || styleFailures.length > 0;
+  if (data.verdict === 'pass' && characterFailures.length) invalid('Pass review cannot fail a due character contract', { chapter, failed_character_ids: characterFailures.map((check) => check.id) });
+  const shouldRevise = data.verdict === 'revise' || lowScores.length > 0 || criticalIssues.length > 0 || missingScene.length > 0 || feedbackFailures.length > 0 || styleFailures.length > 0 || characterFailures.length > 0;
   return {
-    schema_version: '1.2',
+    schema_version: '1.3',
     chapter: Number(chapter),
     reviewer_id: String(data.reviewer_id).trim(),
     verdict: data.verdict,
@@ -204,6 +236,9 @@ function validateData(data, manuscript, chapter, minScore, rules = [], signals =
     style_signal_checks: styleChecks,
     style_signals_due: signals.map((signal) => ({ id: signal.id, dimension: signal.dimension, signal: signal.signal, scope: signal.scope })),
     style_signal_failures: styleFailures.map((check) => check.id),
+    character_contract_checks: characterChecks,
+    character_contracts_due: characters.map((character) => ({ id: character.id, name: character.name, goal: character.goal, pressure: character.pressure, knowledge_boundary: character.knowledge_boundary, voice_and_action: character.voice_and_action, forbidden: character.forbidden })),
+    character_contract_failures: characterFailures.map((check) => check.id),
     issues: data.issues.map((issue) => ({ code: String(issue.code).trim(), severity: issue.severity, evidence: String(issue.evidence).trim(), repair: String(issue.repair).trim() })),
     summary: String(data.summary || '').trim(),
     review_of: manuscript.relative,
@@ -228,7 +263,8 @@ function validate(projectInput, options = {}) {
   catch (error) { invalid('Reader review JSON parse failed', { chapter, file: review.relative, message: error.message }); }
   const rules = feedbackRules.due(project, chapter);
   const signals = styleContract.due(project, chapter);
-  const data = validateData(raw, manuscript, chapter, options['min-score'] ?? options.minScore, rules, signals);
+  const characters = characterContract.due(project, chapter, manuscript.body);
+  const data = validateData(raw, manuscript, chapter, options['min-score'] ?? options.minScore, rules, signals, characters);
   atomicWrite(review.absolute, `${JSON.stringify(data, null, 2)}\n`);
   return { ok: true, project, file: review.relative, data };
 }
@@ -245,4 +281,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-reader-review'); }
 }
 
-module.exports = { REQUIRED_SCORES, REQUIRED_SCENE_EVIDENCE, PRESSURES, HOOK_TYPES, PAYOFF_TYPES, FEEDBACK_RULE_VERDICTS, STYLE_SIGNAL_VERDICTS, argsOf, chapterId, manuscriptOf, reviewPath, validateSceneEvidence, validateRhythm, validateFeedbackRuleChecks, validateStyleSignalChecks, validateData, validate, run };
+module.exports = { REQUIRED_SCORES, REQUIRED_SCENE_EVIDENCE, PRESSURES, HOOK_TYPES, PAYOFF_TYPES, FEEDBACK_RULE_VERDICTS, STYLE_SIGNAL_VERDICTS, CHARACTER_CONTRACT_VERDICTS, argsOf, chapterId, manuscriptOf, reviewPath, validateSceneEvidence, validateRhythm, validateFeedbackRuleChecks, validateStyleSignalChecks, validateCharacterContractChecks, validateData, validate, run };
