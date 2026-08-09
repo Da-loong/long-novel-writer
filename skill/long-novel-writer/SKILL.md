@@ -300,3 +300,8 @@ critical issue, or a `revise` verdict triggers repair and a new review in the
 same chapter transaction. A chapter with an unresolved report never commits.
 Read `references/operations/chapter-reader-review-loop.md`; validate one report
 with `scripts/chapter-reader-review.js`.
+
+Every repair starts from a snapshot, receives a deterministic repair brief, and
+is kept only when its deterministic debt or cold-reader evidence measurably
+improves. A plateau restores the prior manuscript and leaves the chapter open
+for a fresh production attempt; snapshots live under `state/chapter-revisions/`.

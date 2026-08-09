@@ -28,6 +28,13 @@ The following public MIT repositories were inspected for architecture research. 
 - https://github.com/worldwonderer/oh-story-claudecode (reviewed at `70a834e88d1103f494f45667bab4b31472a83b58`)
 - Research record: `research/agent-skill-practices-iteration-2026-08-09.md`
 
+## Autonomous revision-loop research
+
+`NousResearch/autonovel` was reviewed at `d165f267a0ffd34f3b0a70a8a72ac38cb8e4a542` for its public pipeline description: measurable chapter evaluation, revision briefs, candidate keep/discard, and plateau stopping. The checked revision exposes no top-level license. This repository therefore uses no upstream code, prompt text, templates, or assets; it records only independently implemented architectural ideas.
+
+- Repository: https://github.com/NousResearch/autonovel
+- Research record: `research/autonovel-candidate-selection-study-2026-08-09.md`
+
 ## Architecture research
 
 The following public repositories informed independent architectural comparison:

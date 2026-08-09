@@ -25,6 +25,7 @@ const chapterReaderReview = require('./chapter-reader-review');
 const RUN_FILE = 'state/autopilot-run.json';
 const LEDGER_FILE = 'state/autopilot-run-ledger.jsonl';
 const AGENT_DIR = 'state/agent-runs';
+const REVISION_DIR = 'state/chapter-revisions';
 const CONFIG_FILE = 'settings/agent-runner.json';
 const DEFAULTS = {
   agent_command: process.env.LNW_AGENT_COMMAND || 'claude',
@@ -334,6 +335,7 @@ function readerReviewPrompt(project, chapter, manuscript, output, minScore) {
     `Write strict JSON only to ${output}.`,
     'Schema: {"schema_version":"1.0","chapter":number,"reviewer_id":string,"verdict":"pass|revise","scores":{"clarity":0..10,"continuation":0..10,"fanqie_fit":0..10,"character_agency":0..10,"payoff":0..10},"issues":[{"code":string,"severity":"critical|warning","evidence":string,"repair":string}],"summary":string}.',
     `Every issue evidence must be an unmodified contiguous literal quote from the manuscript body. Use verdict "revise" for a reader-blocking problem; score each dimension honestly. Scores under ${minScore}, a critical issue, or verdict revise trigger an in-transaction repair.`,
+    'Calibrate strictly: 6 means a comprehensible but generic AI-like chapter; 7 means a normal publishable serial chapter; 8 requires specific, scene-grounded execution that creates a real desire to continue. Do not use 8 or above merely because the chapter has a title, dialogue, or an unexplained danger.',
     'Assess reader comprehension, desire to continue, Fanqie mobile-web-fiction feel, character agency, and whether this chapter delivers a concrete payoff. Do not praise the writer, invent quotes, or put commentary outside the JSON file.',
   ].join('\n');
 }
@@ -356,7 +358,102 @@ function readerReviewSummary(review, round) {
   };
 }
 
-function revisionPrompt(project, chapter, manuscript, pass, inspection, readerReview = null) {
+function qualityDebt(quality) {
+  return Number(quality?.ai_count || 0)
+    + Number(quality?.degeneration_count || 0)
+    + Number(quality?.format_errors || 0)
+    + Number(quality?.hard_warnings?.length || 0);
+}
+
+function readerScore(review) {
+  const scores = review?.report?.scores;
+  if (!scores) return null;
+  const values = Object.values(scores).map(Number).filter(Number.isFinite);
+  return values.length ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2)) : null;
+}
+
+function candidateState(inspection, review) {
+  const report = review?.report || null;
+  return {
+    quality_debt: qualityDebt(inspection?.quality),
+    reader_enabled: Boolean(review?.enabled),
+    reader_blocks: report?.should_revise ? 1 : 0,
+    reader_critical_issues: Number(report?.critical_issue_count || 0),
+    reader_low_scores: Number(report?.low_scores?.length || 0),
+    reader_score: readerScore(review),
+  };
+}
+
+function chooseCandidate(previous, next) {
+  if (next.quality_debt > previous.quality_debt) return { accepted: false, reason: 'deterministic_quality_regressed', previous, next };
+  if (next.quality_debt < previous.quality_debt) return { accepted: true, reason: 'deterministic_quality_improved', previous, next };
+  if (!previous.reader_enabled && !next.reader_enabled) return { accepted: false, reason: 'no_measurable_improvement', previous, next };
+  if (next.reader_blocks < previous.reader_blocks) return { accepted: true, reason: 'reader_block_resolved', previous, next };
+  if (next.reader_blocks > previous.reader_blocks) return { accepted: false, reason: 'reader_block_regressed', previous, next };
+  if (next.reader_critical_issues < previous.reader_critical_issues) return { accepted: true, reason: 'critical_issue_count_reduced', previous, next };
+  if (next.reader_critical_issues > previous.reader_critical_issues) return { accepted: false, reason: 'critical_issue_count_regressed', previous, next };
+  if (next.reader_low_scores < previous.reader_low_scores) return { accepted: true, reason: 'low_score_count_reduced', previous, next };
+  if (next.reader_low_scores > previous.reader_low_scores) return { accepted: false, reason: 'low_score_count_regressed', previous, next };
+  if (Number.isFinite(next.reader_score) && Number.isFinite(previous.reader_score) && next.reader_score >= previous.reader_score + 0.25) return { accepted: true, reason: 'reader_score_improved', previous, next };
+  return { accepted: false, reason: 'score_plateau_or_regression', previous, next };
+}
+
+function archiveRevision(project, chapter, round, manuscript, inspection, review, decision) {
+  const directory = path.join(project, REVISION_DIR);
+  fs.mkdirSync(directory, { recursive: true });
+  const stem = `ch-${String(chapter).padStart(4, '0')}-r${String(round).padStart(2, '0')}`;
+  const prose = path.join(directory, `${stem}.md`);
+  const metadata = path.join(directory, `${stem}.json`);
+  const text = fs.readFileSync(manuscript, 'utf8');
+  atomicWrite(prose, text);
+  const payload = {
+    schema_version: '1.0', chapter, round, manuscript: relativePath(project, manuscript), manuscript_sha256: sha256(text),
+    snapshot: relativePath(project, prose), candidate: candidateState(inspection, review), decision, created_at: new Date().toISOString(),
+  };
+  writeJson(metadata, payload);
+  return { prose: relativePath(project, prose), metadata: relativePath(project, metadata), payload };
+}
+
+function buildRevisionBrief(project, chapter, pass, inspection, review) {
+  const relative = `analysis/chapter-revision-brief-ch${String(chapter).padStart(4, '0')}-r${String(pass).padStart(2, '0')}.md`;
+  const report = review?.report || null;
+  const issues = [...(report?.issues || [])].sort((left, right) => (left.severity === 'critical' ? -1 : 0) - (right.severity === 'critical' ? -1 : 0));
+  const readerProblems = issues.length
+    ? issues.map((issue, index) => `${index + 1}. [${issue.severity}/${issue.code}] Evidence: “${issue.evidence}”\n   Repair: ${issue.repair}`).join('\n')
+    : (report?.low_scores || []).map((key, index) => `${index + 1}. Raise ${key}; the cold reader scored it ${report.scores[key]}/10.`).join('\n') || 'No reader issue was supplied; repair the deterministic findings only.';
+  const deterministic = [
+    `AI-pattern findings: ${inspection.quality.ai_count}`,
+    `degeneration findings: ${inspection.quality.degeneration_count}`,
+    `format errors: ${inspection.quality.format_errors}`,
+    `hard reader-metric warnings: ${inspection.quality.hard_warnings.length}`,
+  ].join('\n');
+  const markdown = [
+    `# Revision brief: chapter ${chapter}, pass ${pass}`,
+    '',
+    '## Preserve',
+    '',
+    `- The binding chapter contract: state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json.`,
+    '- Canon, character knowledge limits, required beat, and end-hook direction.',
+    '- Fanqie mobile formatting: one title, short readable prose paragraphs, action/result beats, and no planning artifacts.',
+    '',
+    '## Repair in priority order',
+    '',
+    readerProblems,
+    '',
+    '## Deterministic findings',
+    '',
+    deterministic,
+    '',
+    '## Acceptance',
+    '',
+    `- A new cold-reader round must clear every score at or above ${report?.min_score || 'the project threshold'} and return verdict pass.`,
+    '- The candidate must improve its measurable debt; an equal or weaker rewrite is discarded and the prior draft remains the active manuscript.',
+  ].join('\n');
+  atomicWrite(path.join(project, relative), `${markdown}\n`);
+  return relative;
+}
+
+function revisionPrompt(project, chapter, manuscript, pass, inspection, readerReview = null, brief = null) {
   const task = pass === 1 ? 'Draft B structural repair' : 'Draft C language repair';
   return [
     `You are the ${task} node for Chinese web-novel chapter ${chapter}.`,
@@ -365,6 +462,7 @@ function revisionPrompt(project, chapter, manuscript, pass, inspection, readerRe
     `Read the binding chapter card at state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, the context pack, current state, and the deterministic QA findings below.`,
     `QA findings: ${JSON.stringify(inspection.quality)}`,
     `Cold-reader findings: ${JSON.stringify(readerReview?.report || { enabled: false })}`,
+    `Follow this binding repair brief: ${brief || 'no brief generated'}.`,
     'Preserve canon, required beat, character knowledge boundaries, and the end hook. Replace abstract explanation with scene action, choice, consequence, or purposeful dialogue where the findings require it.',
     'Keep Fanqie mobile formatting: plain prose only, short readable paragraphs, concrete action, and a changed ending situation. Update no settings, outline, or project-state files.',
     'Finish by saving the revised manuscript in place. Do not write planning notes into the manuscript.',
@@ -452,13 +550,23 @@ function runChapter(project, config, options, run) {
   let manuscript = files[0];
   let inspection = inspectChapter(manuscript);
   const revisionPasses = [];
+  const revisionArtifacts = [];
   const readerReviews = [];
   let readerReview = requestReaderReview(project, actualChapter, manuscript, 1, config, options);
   if (readerReview.agent) agentRuns.push(readerReview.agent);
   if (readerReview.enabled) readerReviews.push(readerReviewSummary(readerReview, 1));
+  let acceptedSnapshot = null;
   for (let pass = 1; pass <= config.chapter_revision_passes && (!inspection.quality.ok || readerReview.should_revise); pass++) {
+    if (!acceptedSnapshot) {
+      acceptedSnapshot = archiveRevision(project, actualChapter, 0, manuscript, inspection, readerReview, { accepted: true, reason: 'initial_draft' });
+      revisionArtifacts.push(acceptedSnapshot.prose, acceptedSnapshot.metadata);
+    }
+    const priorText = fs.readFileSync(manuscript, 'utf8');
+    const priorInspection = inspection;
+    const priorReaderReview = readerReview;
+    const brief = buildRevisionBrief(project, actualChapter, pass, inspection, readerReview);
     const task = pass === 1 ? 'mvp-structure-revise' : 'mvp-language-revise';
-    const revision = invokeAgent(project, task, revisionPrompt(project, actualChapter, manuscript, pass, inspection, readerReview), config, options);
+    const revision = invokeAgent(project, task, revisionPrompt(project, actualChapter, manuscript, pass, inspection, readerReview, brief), config, options);
     agentRuns.push(revision);
     files = chapterFiles(project, actualChapter);
     if (files.length !== 1) throw new CliError('CHAPTER_ARTIFACT_SHAPE', `Revision produced an invalid manuscript shape for chapter ${actualChapter}`, { files: files.map((file) => relativePath(project, file)), task });
@@ -467,7 +575,17 @@ function runChapter(project, config, options, run) {
     readerReview = requestReaderReview(project, actualChapter, manuscript, pass + 1, config, options);
     if (readerReview.agent) agentRuns.push(readerReview.agent);
     if (readerReview.enabled) readerReviews.push(readerReviewSummary(readerReview, pass + 1));
-    revisionPasses.push({ pass, task, run_id: revision.run_id, quality: inspection.quality, reader_review: readerReviewSummary(readerReview, pass + 1) });
+    const selection = chooseCandidate(candidateState(priorInspection, priorReaderReview), candidateState(inspection, readerReview));
+    const candidateSnapshot = archiveRevision(project, actualChapter, pass, manuscript, inspection, readerReview, selection);
+    revisionArtifacts.push(candidateSnapshot.prose, candidateSnapshot.metadata, brief);
+    revisionPasses.push({ pass, task, run_id: revision.run_id, quality: inspection.quality, reader_review: readerReviewSummary(readerReview, pass + 1), brief, snapshot: candidateSnapshot, selection });
+    if (!selection.accepted) {
+      atomicWrite(manuscript, priorText);
+      inspection = priorInspection;
+      readerReview = priorReaderReview;
+      break;
+    }
+    acceptedSnapshot = candidateSnapshot;
   }
   const { text, metrics, ai, deg, format, quality } = inspection;
   const wordsBefore = Number(before.word_count || 0);
@@ -487,7 +605,7 @@ function runChapter(project, config, options, run) {
     try { transaction.abort(project, { reason: `finish failed: ${JSON.stringify(finished.errors)}` }); } catch (_) { /* retain the failure record */ }
     throw new CliError('CHAPTER_POST_GATE_FAILED', `Chapter ${actualChapter} post-gate failed`, { errors: finished.errors, warnings: finished.warnings });
   }
-  const chapterArtifacts = [relativePath(project, manuscript), qa, finished.event.chapter_memory.path, ...readerReviews.filter((item) => item.enabled).map((item) => item.file)];
+  const chapterArtifacts = [relativePath(project, manuscript), qa, finished.event.chapter_memory.path, ...readerReviews.filter((item) => item.enabled).map((item) => item.file), ...revisionArtifacts];
   workflow.postHoc(project, { chapter: actualChapter, summary: `Chapter ${actualChapter} committed with ${countText(text).chinese_chars} Chinese characters.`, artifacts: chapterArtifacts.join(',') });
   if (actualChapter === 1) finishWorkflowFirstChapter(project, actualChapter, manuscript, config, options);
   const readerReviewResult = readerReviewSummary(readerReview, readerReviews.length);

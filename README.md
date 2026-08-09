@@ -10,7 +10,7 @@
 
 - 版本：`0.3.0-rc.1`
 - 初始基线：`7.5/10`
-- 当前仓库评测：`8.68/10`（93 项自动测试通过，并包含一次三读者前三章盲读前向运行）
+- 当前仓库评测：`8.68/10`（94 项自动测试通过，并包含一次三读者前三章盲读前向运行）
 - 发布门槛：任务级加权评测 `>= 8.5/10`，且无 P0、P1 未关闭问题
 - 支持环境：Windows、Linux；Node.js 20+
 - GitHub：公开仓库已建立；以 `main` 分支 CI 和发布门禁作为合并基线
@@ -156,3 +156,10 @@ node "$skill\scripts\chapter-reader-review.js" validate .\BOOK --chapter 12 --fi
 The default `settings/agent-runner.json` keeps this loop enabled with a minimum
 score of 7. All report rounds are retained under `analysis/` and included by the
 project audit manifest.
+
+Repair candidates are never blindly promoted. Draft A and every revision are
+snapshotted under `state/chapter-revisions/`; a deterministic brief records what
+must remain intact and the exact evidence to repair. The runner keeps a rewrite
+only when it reduces deterministic or cold-reader debt, or raises the
+reader-score by at least 0.25. A plateau restores the stronger prior draft and
+starts a fresh bounded production attempt.

@@ -7,6 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const { spawnSync } = require('node:child_process');
 const runner = require('../skill/long-novel-writer/scripts/autopilot-runner');
+const { audit } = require('../skill/long-novel-writer/scripts/project-audit');
 
 function projectOf() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lnw-autopilot-'));
@@ -175,4 +176,44 @@ test('cold-reader evidence triggers an in-transaction repair even when determini
   assert.equal(qa.reader_reviews[1].should_revise, false);
   assert.ok(fs.existsSync(path.join(project, 'analysis', 'chapter-reader-review-ch0001-r01.json')));
   assert.ok(fs.existsSync(path.join(project, 'analysis', 'chapter-reader-review-ch0001-r02.json')));
+  const brief = fs.readFileSync(path.join(project, 'analysis', 'chapter-revision-brief-ch0001-r01.md'), 'utf8');
+  assert.match(brief, /## Preserve/);
+  assert.match(brief, /林越把第1张欠条拍在柜台上。/);
+  const revision = JSON.parse(fs.readFileSync(path.join(project, 'state', 'chapter-revisions', 'ch-0001-r01.json'), 'utf8'));
+  assert.equal(revision.decision.accepted, true);
+  assert.equal(revision.decision.reason, 'reader_block_resolved');
+  const auditPaths = audit(project).artifacts.map((item) => item.path);
+  assert.ok(auditPaths.includes('state/chapter-revisions/ch-0001-r00.md'));
+  assert.ok(auditPaths.includes('state/chapter-revisions/ch-0001-r01.json'));
+});
+
+test('unimproved cold-reader repair is discarded and leaves the previous draft as the candidate', () => {
+  const project = projectOf();
+  runner.start(project, { 'max-attempts': '1', 'chapter-revision-passes': '2' });
+  const plateauAgent = (request) => {
+    if (request.task === 'mvp-reader-review') {
+      const output = request.prompt.match(/analysis\/chapter-reader-review-ch\d{4}-r\d{2}\.json/)?.[0];
+      assert.ok(output, request.prompt);
+      const chapter = Number(JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'chapter-transaction.json'), 'utf8')).chapter);
+      const file = path.join(request.project, output);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify({
+        schema_version: '1.0', chapter, reviewer_id: 'plateau-reader', verdict: 'revise',
+        scores: { clarity: 6, continuation: 6, fanqie_fit: 6, character_agency: 8, payoff: 6 },
+        issues: [{ code: 'FLAT_TENSION', severity: 'warning', evidence: '林越把第1张欠条拍在柜台上。', repair: 'Create a sharper consequence.' }],
+        summary: 'The candidate remains too generic.',
+      }, null, 2), 'utf8');
+      return { exitCode: 0, stdout: '', stderr: '' };
+    }
+    if (request.task === 'mvp-structure-revise') return fakeAgent({ ...request, task: 'mvp' });
+    return fakeAgent(request);
+  };
+  const report = runner.runProject(project, { 'max-chapters': '1', invokeAgent: plateauAgent });
+  assert.equal(report.ok, false, JSON.stringify(report));
+  assert.equal(report.code, 'CHAPTER_READER_REVIEW_FAILED');
+  const initial = fs.readFileSync(path.join(project, 'state', 'chapter-revisions', 'ch-0001-r00.md'), 'utf8');
+  assert.match(initial, /# 雨夜的欠条/);
+  const rejected = JSON.parse(fs.readFileSync(path.join(project, 'state', 'chapter-revisions', 'ch-0001-r01.json'), 'utf8'));
+  assert.equal(rejected.decision.accepted, false);
+  assert.equal(rejected.decision.reason, 'score_plateau_or_regression');
 });

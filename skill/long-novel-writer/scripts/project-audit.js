@@ -58,6 +58,7 @@ function dynamicTracked(project) {
   const roots = [
     { relative: 'state/chapter-memory', match: /^ch-\d{4}\.json$/i },
     { relative: 'state/chapter-cards', match: /^ch-\d{4}\.json$/i },
+    { relative: 'state/chapter-revisions', match: /^ch-\d{4}-r\d{2}\.(?:md|json)$/i },
     { relative: 'analysis', match: /^chapter-reader-review-ch\d{4}-r\d{2}\.json$/i },
   ];
   return roots.flatMap(({ relative, match }) => {

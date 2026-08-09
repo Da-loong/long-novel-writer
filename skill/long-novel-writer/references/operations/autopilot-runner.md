@@ -31,10 +31,12 @@ project config.
    `state/agent-runs/`; a missing artifact or failed process consumes one
    retry and leaves the previous checkpoint intact.
 3. Each chapter is wrapped by `chapter-transaction begin -> chapter card ->
-   Draft A -> bounded Draft B/C repair on deterministic findings -> quality
-   checks -> finish -> post-hoc`. State is advanced only around the post gate;
-   a failed post gate restores the previous project state and records an
-   aborted transaction.
+   Draft A -> deterministic checks + cold-reader report -> bounded Draft B/C
+   repair -> candidate selection -> quality checks -> finish -> post-hoc`.
+   Every repair receives a versioned brief and snapshot. A candidate is retained
+   only when its measurable quality or reader debt improves; a plateau restores
+   the prior draft. State is advanced only around the post gate; a failed post
+   gate restores the previous project state and records an aborted transaction.
 4. Before chapter 4 in a 300k+ project, three independent cold-reader sessions
    produce raw reports. The runner synthesizes evidence with verifiable quotes
    and invokes the existing pilot gate. A weak panel pauses production and

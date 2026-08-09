@@ -10,6 +10,8 @@ All notable changes are recorded here. Versions follow Semantic Versioning for t
   literal-prose issue anchors, manuscript hashes, and audit-manifest coverage.
 - Bounded Draft B/C repair now responds to a validated reader verdict as well as
   deterministic format and degeneration checks.
+- Revision briefs, immutable candidate snapshots, and measurable keep/discard
+  selection prevent a plateaued repair from replacing the stronger draft.
 
 ## 0.2.0-rc.1 - 2026-08-06
 

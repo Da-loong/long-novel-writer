@@ -45,3 +45,19 @@ Required scores are `clarity`, `continuation`, `fanqie_fit`,
 `character_agency`, and `payoff`, each from 0 through 10. Issues contain a
 stable code, `critical` or `warning` severity, literal manuscript evidence,
 and a repair instruction. The reviewer does not edit source files.
+
+## Candidate selection and plateau
+
+Before the first repair, the runner snapshots Draft A in
+`state/chapter-revisions/ch-XXXX-r00.md`. Each repair round gets a deterministic
+brief at `analysis/chapter-revision-brief-chXXXX-rNN.md`, then is reviewed and
+archived with a JSON decision record. The selection order is:
+
+1. fewer deterministic defects;
+2. fewer reader blocks, critical issues, or below-threshold dimensions;
+3. at equal debt, a reader-score gain of at least `0.25`.
+
+Any candidate that adds deterministic defects, worsens reader debt, or plateaus
+is saved for audit and replaced by the prior accepted manuscript. The chapter
+then remains uncommitted so the outer production attempt can start fresh rather
+than repeatedly degrading the same prose.
