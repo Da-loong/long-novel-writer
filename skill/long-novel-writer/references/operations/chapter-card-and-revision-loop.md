@@ -5,6 +5,8 @@
 Before a transaction starts, `chapter-card.js build <PROJECT> --chapter N` derives `state/chapter-cards/ch-XXXX.json` from the chapter beat, current character state, current focus, unresolved hooks, and due foreshadowing. The card carries:
 
 - the POV, goal, obstacle, turn, cost, information gain, emotional movement, and end hook;
+- a reader-experience contract: the central reader question, visible mini-payoff,
+  end-state change, and end pull;
 - the available POV knowledge when the character-state table records it;
 - a three-scene delivery contract: entry pressure, escalation choice, payoff and next pull;
 - source hashes and acceptance checks.

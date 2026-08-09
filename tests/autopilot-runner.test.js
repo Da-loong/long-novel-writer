@@ -24,6 +24,7 @@ function sceneEvidence(chapter) {
     goal: { status: 'present', evidence: `林越把第${chapter}张欠条拍在柜台上。`, note: 'The immediate objective is visible.' },
     obstacle: { status: 'present', evidence: '“今天给答案。”', note: 'The demanded answer creates pressure.' },
     turn: { status: 'present', evidence: '选择1落下，林越抓起旧秤走向亮着灯的巷口', note: 'The protagonist commits to a changed course.' },
+    payoff: { status: 'present', evidence: '围观的人让开一条窄路', note: 'The choice yields a concrete change in access.' },
     hook: { status: 'present', evidence: '这一步把下一次选择的代价摆到了所有人面前。', note: 'The next cost is unresolved.' },
   };
 }
@@ -135,7 +136,7 @@ test('autopilot repairs a failed draft inside the active chapter transaction', (
       fs.writeFileSync(path.join(request.project, 'manuscript', chapterFile), [
         '# Broken draft', '', '[TODO]', '',
         '林越把第1张欠条拍在柜台上。', '', '“今天给答案。”', '',
-        '选择1落下，林越抓起旧秤走向亮着灯的巷口。', '',
+        '选择1落下，林越抓起旧秤走向亮着灯的巷口，围观的人让开一条窄路。', '',
         '这一步把下一次选择的代价摆到了所有人面前。', '',
       ].join('\n'), 'utf8');
       return result;

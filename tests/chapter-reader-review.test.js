@@ -29,6 +29,7 @@ function report(overrides = {}) {
       goal: { status: 'present', evidence: '林越把欠条按在柜台上，雨水顺着他的手背滴落。', note: 'The objective is visible in action.' },
       obstacle: { status: 'present', evidence: '巷口的人没有散，反而把退路堵住了。', note: 'The opposition closes the exit.' },
       turn: { status: 'present', evidence: '林越把欠条按在柜台上，雨水顺着他的手背滴落。', note: 'The public commitment changes the situation.' },
+      payoff: { status: 'present', evidence: '巷口的人没有散，反而把退路堵住了。', note: 'The public commitment produces a concrete, worsened position.' },
       hook: { status: 'present', evidence: '巷口的人没有散，反而把退路堵住了。', note: 'The blocked exit leaves an immediate question.' },
     },
     issues: [], summary: 'Clear scene pressure.', ...overrides,
@@ -64,19 +65,19 @@ test('chapter reader review rejects fabricated evidence and inconsistent pass ve
   assert.throws(() => readerReview.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_READER_REVIEW_INVALID');
 });
 
-test('missing scene evidence forces revision and blocks a pass verdict', () => {
+test('missing visible payoff forces revision and blocks a pass verdict', () => {
   const project = fixtureProject();
   const relative = 'analysis/chapter-reader-review-ch0001-r01.json';
   const incomplete = {
     ...report().scene_evidence,
-    hook: { status: 'missing', evidence: '', note: 'The ending creates no concrete next-reading question.' },
+    payoff: { status: 'missing', evidence: '', note: 'The chapter provides no reader-visible result, answer, gain, loss, or new fact.' },
   };
   fs.writeFileSync(path.join(project, relative), JSON.stringify(report({
     verdict: 'revise', scene_evidence: incomplete,
   }), null, 2), 'utf8');
   const result = readerReview.validate(project, { chapter: '1', file: relative });
   assert.equal(result.data.should_revise, true);
-  assert.deepEqual(result.data.scene_missing, ['hook']);
+  assert.deepEqual(result.data.scene_missing, ['payoff']);
   fs.writeFileSync(path.join(project, relative), JSON.stringify(report({
     verdict: 'pass', scene_evidence: incomplete,
   }), null, 2), 'utf8');

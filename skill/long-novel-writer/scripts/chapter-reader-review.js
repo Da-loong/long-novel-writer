@@ -11,7 +11,7 @@ const path = require('path');
 const { CliError, emitError, atomicWrite } = require('./cap-utils');
 
 const REQUIRED_SCORES = ['clarity', 'continuation', 'fanqie_fit', 'character_agency', 'payoff'];
-const REQUIRED_SCENE_EVIDENCE = ['goal', 'obstacle', 'turn', 'hook'];
+const REQUIRED_SCENE_EVIDENCE = ['goal', 'obstacle', 'turn', 'payoff', 'hook'];
 const VERDICTS = new Set(['pass', 'revise']);
 const SEVERITIES = new Set(['critical', 'warning']);
 const SCENE_STATUSES = new Set(['present', 'missing']);

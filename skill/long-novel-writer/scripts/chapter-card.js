@@ -8,6 +8,7 @@ const { CliError, emitError, atomicWrite } = require('./cap-utils');
 
 const CARD_DIR = 'state/chapter-cards';
 const REQUIRED_BEAT_FIELDS = ['pov', 'goal', 'obstacle', 'turn', 'cost', 'information', 'emotion', 'hook'];
+const REQUIRED_READER_EXPERIENCE_FIELDS = ['reader_question', 'visible_payoff', 'net_change', 'end_pull'];
 
 function argsOf(argv) {
   const args = {};
@@ -76,6 +77,16 @@ function sourceHashes(project, paths) {
 
 function cardFile(project, chapter) { return path.join(project, CARD_DIR, `ch-${String(chapter).padStart(4, '0')}.json`); }
 
+function readerExperienceOf(beat) {
+  if (!beat) return null;
+  return {
+    reader_question: `${beat.pov}能否${beat.goal}，并应对${beat.obstacle}？`,
+    visible_payoff: `让读者实际获得“${beat.information}”或“${beat.turn}”造成的明确结果；不可只把回报推迟到下一章。`,
+    net_change: `章节结束时必须能看见由“${beat.turn}”带来的代价、资源、关系、认知或风险变化：${beat.cost}。`,
+    end_pull: beat.hook,
+  };
+}
+
 function build(projectInput, options = {}) {
   const project = path.resolve(projectInput);
   if (!fs.existsSync(project)) throw new CliError('PATH_NOT_FOUND', `Project does not exist: ${project}`, { project });
@@ -105,6 +116,7 @@ function build(projectInput, options = {}) {
       { order: 2, function: 'escalation-choice', must_deliver: [beat.turn, beat.cost] },
       { order: 3, function: 'payoff-next-pull', must_deliver: [beat.information, beat.emotion, beat.hook] },
     ] : [],
+    reader_experience_contract: readerExperienceOf(beat),
     foreshadowing_due: foreshadowing.due,
     drafting_protocol: {
       draft_a: 'Deliver the beat through visible scene action and preserve the knowledge boundary.',
@@ -113,7 +125,7 @@ function build(projectInput, options = {}) {
     },
     acceptance: beat ? [
       `POV pursues: ${beat.goal}`, `Pressure: ${beat.obstacle}`, `Turn and cost: ${beat.turn} / ${beat.cost}`,
-      `Reader gain: ${beat.information}`, `Ending pull: ${beat.hook}`,
+      `Visible reader payoff: ${beat.information}`, `Ending pull: ${beat.hook}`,
     ] : [],
     source_hashes: sourceHashes(project, sources), errors, warnings,
   };
@@ -140,6 +152,7 @@ function validate(projectInput, options = {}) {
   if (Number(card.chapter) !== chapter) errors.push({ code: 'CHAPTER_CARD_NUMBER_MISMATCH', expected: chapter, actual: card.chapter });
   if (card.status !== 'ready') errors.push(...(card.errors || [{ code: 'CHAPTER_CARD_NOT_READY' }]));
   for (const field of REQUIRED_BEAT_FIELDS) if (!String(card.chapter_beat?.[field] || '').trim()) errors.push({ code: 'CHAPTER_CARD_BEAT_FIELD_MISSING', field });
+  for (const field of REQUIRED_READER_EXPERIENCE_FIELDS) if (!String(card.reader_experience_contract?.[field] || '').trim()) errors.push({ code: 'CHAPTER_CARD_READER_EXPERIENCE_MISSING', field });
   return { ok: errors.length === 0, chapter, file, errors, card };
 }
 
@@ -159,4 +172,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-card'); }
 }
 
-module.exports = { CARD_DIR, REQUIRED_BEAT_FIELDS, argsOf, cellsOf, tableRows, beatOf, knowledgeOf, dueForeshadowing, sourceHashes, cardFile, build, write, validate, run };
+module.exports = { CARD_DIR, REQUIRED_BEAT_FIELDS, REQUIRED_READER_EXPERIENCE_FIELDS, argsOf, cellsOf, tableRows, beatOf, knowledgeOf, dueForeshadowing, sourceHashes, cardFile, readerExperienceOf, build, write, validate, run };

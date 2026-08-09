@@ -147,10 +147,11 @@ commit. The report scores clarity, continuation, Fanqie fit, character agency,
 and chapter payoff. Every reported issue must quote the manuscript verbatim;
 the validator records the reviewed manuscript SHA-256 and rejects fabricated
 evidence. It additionally requires literal proof that the prose delivers the
-chapter's goal, obstacle, turn, and next-reading hook; an absent leg blocks a
-`pass` verdict. A weak score, critical issue, missing scene leg, or `revise`
-verdict enters the existing bounded Draft B/C repair loop and receives a fresh
-review round.
+chapter's goal, obstacle, turn, visible mini-payoff, and next-reading hook; an
+absent leg blocks a `pass` verdict. A threat deferred to the next chapter does
+not count as this chapter's payoff. A weak score, critical issue, missing scene
+leg, or `revise` verdict enters the existing bounded Draft B/C repair loop and
+receives a fresh review round.
 
 ```powershell
 node "$skill\scripts\chapter-reader-review.js" validate .\BOOK --chapter 12 --file .\BOOK\analysis\chapter-reader-review-ch0012-r01.json

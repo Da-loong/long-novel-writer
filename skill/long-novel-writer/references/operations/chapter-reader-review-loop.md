@@ -14,10 +14,12 @@ into a reproducible file contract.
 3. `scripts/chapter-reader-review.js validate` checks the exact schema, score
    ranges, chapter identity, and that each issue quote literally occurs in the
    reviewed manuscript. The report stores that manuscript SHA-256.
-4. The reviewer also supplies literal proof for four scene legs: the
-   protagonist's goal, obstacle, turn, and a concrete next-reading hook. A leg
-   not present in the prose is recorded as `missing` rather than inferred from
-   the chapter card.
+4. The reviewer also supplies literal proof for five scene legs: the
+   protagonist's goal, obstacle, turn, visible mini-payoff, and a concrete
+   next-reading hook. The payoff is a result, answer, gain/loss,
+   relationship/resource shift, or actionable new fact that the reader receives
+   before the hook. A leg not present in the prose is recorded as `missing`
+   rather than inferred from the chapter card.
 5. A `revise` verdict, any critical issue, a missing scene leg, or a score below
    `chapter_reader_min_score` activates Draft B/C. The revision prompt receives
    both deterministic findings and the validated reader report.
@@ -50,7 +52,8 @@ Required scores are `clarity`, `continuation`, `fanqie_fit`,
 stable code, `critical` or `warning` severity, literal manuscript evidence,
 and a repair instruction. The reviewer does not edit source files.
 
-`scene_evidence` contains exactly `goal`, `obstacle`, `turn`, and `hook`. Each
+`scene_evidence` contains exactly `goal`, `obstacle`, `turn`, `payoff`, and
+`hook`. Each
 item has `status` (`present` or `missing`), `evidence`, and `note`. A `present`
 item must quote a contiguous literal manuscript excerpt; a `missing` item needs
 an explanatory note. The validator writes `scene_missing` into the normalized
