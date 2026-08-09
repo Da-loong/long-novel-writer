@@ -32,6 +32,7 @@ const TRACKED = [
   'state/post-hoc-ledger.jsonl',
   'state/autopilot-run.json',
   'state/autopilot-run-ledger.jsonl',
+  'state/post-review-checkpoint.json',
   'state/current-focus.md',
   'state/feedback-rules.json',
   'state/style-contract.json',

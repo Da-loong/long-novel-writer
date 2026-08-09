@@ -276,7 +276,7 @@ node scripts/autopilot-runner.js run <PROJECT> --model "MODEL" --quiet
 node scripts/autopilot-runner.js status <PROJECT>
 ```
 
-`autopilot-runner.js` invokes the configured Agent, saves every prompt and transcript under `state/agent-runs/`, retries bounded failures, commits one chapter at a time, runs post-hoc continuity, performs the three-reader pilot, and pauses on a rejection or failed gate. `--max-chapters` is a resumable budget slice for tests; omit it for the configured target word count. Read `references/operations/autopilot-runner.md` before changing the command or model adapter.
+`autopilot-runner.js` invokes the configured Agent, saves every prompt and transcript under `state/agent-runs/`, retries bounded failures, commits one chapter at a time, runs post-hoc continuity, performs the three-reader pilot, and pauses on a rejection or failed gate. After an accepted cold read, a hash-bound post-review receipt lets a transient fact-extractor failure resume the same reviewed prose without silently producing a second Draft A; any manuscript/card/report drift invalidates that reuse. `--max-chapters` is a resumable budget slice for tests; omit it for the configured target word count. Read `references/operations/autopilot-runner.md` before changing the command or model adapter.
 
 ## 番茄正文格式与流水账门禁
 

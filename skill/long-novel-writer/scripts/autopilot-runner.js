@@ -36,6 +36,7 @@ const RUN_FILE = 'state/autopilot-run.json';
 const LEDGER_FILE = 'state/autopilot-run-ledger.jsonl';
 const AGENT_DIR = 'state/agent-runs';
 const REVISION_DIR = 'state/chapter-revisions';
+const POST_REVIEW_CHECKPOINT_FILE = 'state/post-review-checkpoint.json';
 const CONFIG_FILE = 'settings/agent-runner.json';
 const DEFAULTS = {
   agent_command: process.env.LNW_AGENT_COMMAND || 'claude',
@@ -303,6 +304,48 @@ function chapterFiles(project, chapter) {
   return fs.readdirSync(dir).filter((name) => pattern.test(name)).map((name) => path.join(dir, name));
 }
 
+// A retry after a transient post-review tool failure must not silently replace
+// already reviewed prose with a new model sample. This checkpoint is narrow:
+// it is usable only while the same transaction, card, manuscript hash, and
+// accepted cold-reader receipt all remain intact.
+function postReviewCheckpoint(project, chapter, active = null) {
+  const checkpoint = readJson(path.join(project, POST_REVIEW_CHECKPOINT_FILE), null);
+  const transactionState = active || readJson(path.join(project, transaction.TRANSACTION_FILE), null);
+  if (!checkpoint || checkpoint.phase !== 'post_review_accepted' || Number(checkpoint.chapter) !== Number(chapter) || transactionState?.phase !== 'drafting' || Number(transactionState.chapter) !== Number(chapter)) return null;
+  const files = chapterFiles(project, chapter);
+  if (files.length !== 1) return null;
+  const manuscript = files[0];
+  if (relativePath(project, manuscript) !== checkpoint.manuscript || sha256(fs.readFileSync(manuscript, 'utf8')) !== checkpoint.manuscript_sha256) return null;
+  const card = path.join(project, transactionState.chapter_card?.path || '');
+  if (!transactionState.chapter_card?.path || !transactionState.chapter_card?.sha256 || !fs.existsSync(card) || sha256(fs.readFileSync(card, 'utf8')) !== checkpoint.chapter_card_sha256 || transactionState.chapter_card.sha256 !== checkpoint.chapter_card_sha256) return null;
+  const review = path.join(project, checkpoint.reader_review);
+  const report = fs.existsSync(review) ? readJson(review, null) : null;
+  if (!report || report.should_revise !== false || report.manuscript_sha256 !== checkpoint.manuscript_sha256) return null;
+  return { ...checkpoint, manuscript, reader_review_file: review };
+}
+
+function writePostReviewCheckpoint(project, chapter, manuscript, readerReview, active = null) {
+  const transactionState = active || readJson(path.join(project, transaction.TRANSACTION_FILE), null);
+  if (!readerReview?.enabled || readerReview.should_revise || !readerReview.report?.manuscript_sha256 || !transactionState?.chapter_card?.sha256) return null;
+  const payload = {
+    schema_version: '1.0', phase: 'post_review_accepted', chapter: Number(chapter),
+    manuscript: relativePath(project, manuscript), manuscript_sha256: readerReview.report.manuscript_sha256,
+    reader_review: readerReview.relative, chapter_card_sha256: transactionState.chapter_card.sha256,
+    created_at: new Date().toISOString(),
+  };
+  writeJson(path.join(project, POST_REVIEW_CHECKPOINT_FILE), payload);
+  return payload;
+}
+
+function clearPostReviewCheckpoint(project) {
+  try { fs.unlinkSync(path.join(project, POST_REVIEW_CHECKPOINT_FILE)); } catch (_) { /* absent is already clear */ }
+}
+
+function resumableFactExtractionFailure(project, chapter, error) {
+  if (error?.code !== 'AGENT_FAILED' || error?.details?.task !== 'mvp-fact-extract') return null;
+  return postReviewCheckpoint(project, chapter);
+}
+
 function quarantineChapter(project, chapter, attempt) {
   const files = chapterFiles(project, chapter);
   if (!files.length) return [];
@@ -369,18 +412,24 @@ function readerReviewPrompt(project, chapter, manuscript, output, minScore) {
 }
 
 function requestReaderReview(project, chapter, manuscript, round, config, options) {
-  if (!config.chapter_reader_review) return { enabled: false, should_revise: false, report: null, relative: null, agent: null };
+  if (!config.chapter_reader_review) return { enabled: false, should_revise: false, report: null, relative: null, agent: null, source: 'disabled' };
   const relative = `analysis/chapter-reader-review-ch${String(chapter).padStart(4, '0')}-r${String(round).padStart(2, '0')}.json`;
   const agent = invokeAgent(project, 'mvp-reader-review', readerReviewPrompt(project, chapter, manuscript, relative, config.chapter_reader_min_score), config, options);
   const validated = chapterReaderReview.validate(project, { chapter: String(chapter), file: relative, 'min-score': config.chapter_reader_min_score });
-  return { enabled: true, relative, agent, report: validated.data, should_revise: validated.data.should_revise };
+  return { enabled: true, relative, agent, report: validated.data, should_revise: validated.data.should_revise, source: 'fresh' };
+}
+
+function resumeReaderReview(project, chapter, checkpoint, config) {
+  const validated = chapterReaderReview.validate(project, { chapter: String(chapter), file: checkpoint.reader_review, 'min-score': config.chapter_reader_min_score });
+  if (validated.data.manuscript_sha256 !== checkpoint.manuscript_sha256 || validated.data.should_revise) throw new CliError('POST_REVIEW_CHECKPOINT_STALE', `Post-review checkpoint is no longer an accepted receipt for chapter ${chapter}`, { chapter, file: checkpoint.reader_review });
+  return { enabled: true, relative: checkpoint.reader_review, agent: null, report: validated.data, should_revise: false, source: 'post_review_checkpoint' };
 }
 
 function readerReviewSummary(review, round) {
   if (!review?.enabled || !review.report) return { enabled: false, round };
   const report = review.report;
   return {
-    enabled: true, round, file: review.relative, run_id: review.agent.run_id, verdict: report.verdict, scores: report.scores,
+    enabled: true, round, file: review.relative, run_id: review.agent?.run_id || null, source: review.source || 'fresh', verdict: report.verdict, scores: report.scores,
     review_of: report.review_of, manuscript_sha256: report.manuscript_sha256,
     low_scores: report.low_scores, critical_issue_count: report.critical_issue_count, scene_missing: report.scene_missing, feedback_rule_failures: report.feedback_rule_failures || [], style_signal_failures: report.style_signal_failures || [], character_contract_failures: report.character_contract_failures || [], editorial_dimension_failures: report.editorial_dimension_failures || [], hook_agenda_failures: report.hook_agenda_failures || [], chapter_obligation_failures: report.chapter_obligation_failures || [], rhythm: report.rhythm, should_revise: report.should_revise,
   };
@@ -619,10 +668,14 @@ function runChapter(project, config, options, run) {
   const beginResult = active.phase === 'drafting' ? { ok: true, chapter: active.chapter, context: path.join(project, active.context_pack?.path || 'state/context-pack.md') } : transaction.begin(project, { chapter, query: 'chapter beat character relations hooks', 'min-chars': String(config.chapter_min_chars), ...(config.chapter_max_chars === null ? {} : { 'max-chars': String(config.chapter_max_chars) }) });
   if (!beginResult.ok) throw new CliError('CHAPTER_PRE_GATE_FAILED', `Chapter ${chapter} pre-gate failed`, { errors: beginResult.errors });
   const actualChapter = Number(beginResult.chapter || chapter);
+  active = readJson(path.join(project, transaction.TRANSACTION_FILE), active);
+  const checkpoint = postReviewCheckpoint(project, actualChapter, active);
+  const resumedFromCheckpoint = Boolean(checkpoint);
   run.attempts = { ...(run.attempts || {}), [`chapter-${actualChapter}`]: Number(run.attempts?.[`chapter-${actualChapter}`] || 0) + 1 };
-  updateRun(project, { current_chapter: actualChapter, phase: actualChapter <= 3 ? 'pilot-build' : 'production', attempts: run.attempts, last_event: { type: 'chapter_started', chapter: actualChapter } });
-  const agent = invokeAgent(project, 'mvp', chapterPrompt(project, actualChapter, beginResult), config, options);
-  const agentRuns = [agent];
+  updateRun(project, { current_chapter: actualChapter, phase: actualChapter <= 3 ? 'pilot-build' : 'production', attempts: run.attempts, last_event: { type: resumedFromCheckpoint ? 'chapter_resumed_from_post_review_checkpoint' : 'chapter_started', chapter: actualChapter } });
+  if (resumedFromCheckpoint) event(project, { type: 'chapter_resumed_from_post_review_checkpoint', chapter: actualChapter, manuscript: checkpoint.manuscript, reader_review: checkpoint.reader_review });
+  const agent = resumedFromCheckpoint ? null : invokeAgent(project, 'mvp', chapterPrompt(project, actualChapter, beginResult), config, options);
+  const agentRuns = agent ? [agent] : [];
   let files = chapterFiles(project, actualChapter);
   if (files.length !== 1) throw new CliError('CHAPTER_ARTIFACT_SHAPE', `Expected exactly one manuscript file for chapter ${actualChapter}`, { files: files.map((file) => relativePath(project, file)) });
   let manuscript = files[0];
@@ -630,7 +683,7 @@ function runChapter(project, config, options, run) {
   const revisionPasses = [];
   const revisionArtifacts = [];
   const readerReviews = [];
-  let readerReview = requestReaderReview(project, actualChapter, manuscript, 1, config, options);
+  let readerReview = resumedFromCheckpoint ? resumeReaderReview(project, actualChapter, checkpoint, config) : requestReaderReview(project, actualChapter, manuscript, 1, config, options);
   if (readerReview.agent) agentRuns.push(readerReview.agent);
   if (readerReview.enabled) readerReviews.push(readerReviewSummary(readerReview, 1));
   let acceptedSnapshot = null;
@@ -671,6 +724,7 @@ function runChapter(project, config, options, run) {
   let qa = ensureQa(project, actualChapter, metrics, ai, deg, format, revisionPasses, readerReviews);
   if (!quality.ok) throw new CliError('CHAPTER_QUALITY_GATE_FAILED', `Chapter ${actualChapter} quality gate failed`, { chapter: actualChapter, quality, qa, revision_passes: revisionPasses });
   if (readerReview.should_revise) throw new CliError('CHAPTER_READER_REVIEW_FAILED', `Chapter ${actualChapter} cold-reader review still requires revision`, { chapter: actualChapter, qa, reader_review: readerReviewSummary(readerReview, readerReviews.length), revision_passes: revisionPasses });
+  const postReview = writePostReviewCheckpoint(project, actualChapter, manuscript, readerReview, active);
   const factRelative = `analysis/chapter-facts-ch${String(actualChapter).padStart(4, '0')}.json`;
   const factLedgerRelative = `${chapterFacts.FACT_LEDGER_DIR}/ch-${String(actualChapter).padStart(4, '0')}.json`;
   const factBefore = [factRelative, factLedgerRelative, foreshadowingReconcile.OUTPUT, hookAgenda.OUTPUT, resourceLedger.OUTPUT, resourceLedger.WINDOW_OUTPUT, qualityTrendLedger.LEDGER_FILE, qualityTrendLedger.GUIDANCE_FILE, repairDebtLedger.LEDGER_FILE, repairDebtLedger.GUIDANCE_FILE].map((relative) => {
@@ -722,16 +776,18 @@ function runChapter(project, config, options, run) {
       else atomicWrite(item.file, item.text);
     }
     try { transaction.abort(project, { reason: `finish failed: ${JSON.stringify(finished.errors)}` }); } catch (_) { /* retain the failure record */ }
+    clearPostReviewCheckpoint(project);
     throw new CliError('CHAPTER_POST_GATE_FAILED', `Chapter ${actualChapter} post-gate failed`, { errors: finished.errors, warnings: finished.warnings });
   }
+  clearPostReviewCheckpoint(project);
   const chapterArtifacts = [relativePath(project, manuscript), qa, finished.event.chapter_memory.path, ...readerReviews.filter((item) => item.enabled).map((item) => item.file), ...(factSummary.enabled ? [factSummary.file, factSummary.ledger] : []), ...(foreshadowingProgress.output ? [foreshadowingProgress.output] : []), ...(hookAgendaReport?.output ? [hookAgendaReport.output] : []), ...(resourceLedgerReport?.output ? [resourceLedgerReport.output, resourceLedgerReport.window_output] : []), ...(pacing.output ? [pacing.output] : []), qualityTrendLedger.LEDGER_FILE, qualityTrendLedger.GUIDANCE_FILE, repairDebtLedger.LEDGER_FILE, repairDebtLedger.GUIDANCE_FILE, ...revisionArtifacts];
   workflow.postHoc(project, { chapter: actualChapter, summary: `Chapter ${actualChapter} committed with ${countText(text).chinese_chars} Chinese characters.`, artifacts: chapterArtifacts.join(',') });
   if (actualChapter === 1) finishWorkflowFirstChapter(project, actualChapter, manuscript, config, options);
   const readerReviewResult = readerReviewSummary(readerReview, readerReviews.length);
-  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress.audit || null, hook_agenda: hookAgendaReport?.audit || null, resource_ledger: resourceLedgerReport?.audit || null, pacing: pacing.audit || null, quality_trend: qualityTrendReport.ledger.audit || null, repair_debt: repairDebtReport.ledger.audit || null, quality }, word_count: words };
+  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent?.run_id || null, agent_run_ids: agentRuns.map((item) => item.run_id), resumed_from_post_review_checkpoint: resumedFromCheckpoint, revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress.audit || null, hook_agenda: hookAgendaReport?.audit || null, resource_ledger: resourceLedgerReport?.audit || null, pacing: pacing.audit || null, quality_trend: qualityTrendReport.ledger.audit || null, repair_debt: repairDebtReport.ledger.audit || null, quality }, word_count: words };
   updateRun(project, nextState);
-  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress.audit || null, hook_agenda: hookAgendaReport?.audit || null, resource_ledger: resourceLedgerReport?.audit || null, pacing: pacing.audit || null, quality_trend: qualityTrendReport.ledger.audit || null, repair_debt: repairDebtReport.ledger.audit || null, word_count: words, quality });
-  return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress, hook_agenda: hookAgendaReport, resource_ledger: resourceLedgerReport, pacing, quality_trend: qualityTrendReport, repair_debt: repairDebtReport };
+  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_ids: agentRuns.map((item) => item.run_id), resumed_from_post_review_checkpoint: resumedFromCheckpoint, revision_passes: revisionPasses.length, reader_review: readerReviewResult, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress.audit || null, hook_agenda: hookAgendaReport?.audit || null, resource_ledger: resourceLedgerReport?.audit || null, pacing: pacing.audit || null, quality_trend: qualityTrendReport.ledger.audit || null, repair_debt: repairDebtReport.ledger.audit || null, word_count: words, quality });
+  return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent?.run_id || null, agent_run_ids: agentRuns.map((item) => item.run_id), resumed_from_post_review_checkpoint: resumedFromCheckpoint, post_review_checkpoint: postReview, revision_passes: revisionPasses, reader_reviews: readerReviews, chapter_facts: factSummary, foreshadowing_progress: foreshadowingProgress, hook_agenda: hookAgendaReport, resource_ledger: resourceLedgerReport, pacing, quality_trend: qualityTrendReport, repair_debt: repairDebtReport };
 }
 
 function quoteFromChapter(project, chapter) {
@@ -924,12 +980,19 @@ function runProject(projectInput, options = {}) {
           } catch (debtError) {
             event(project, { type: 'repair_debt_refresh_failed', chapter: nextChapter, attempt, code: debtError.code || 'UNEXPECTED_ERROR', reason: debtError.message });
           }
-          const active = readJson(path.join(project, transaction.TRANSACTION_FILE), { phase: 'idle' });
-          if (active.phase === 'drafting') {
-            try { transaction.abort(project, { reason: `attempt ${attempt}: ${error.message}` }); } catch (_) { /* retain original failure */ }
+          const checkpoint = resumableFactExtractionFailure(project, nextChapter, error);
+          if (checkpoint) {
+            event(project, { type: 'post_review_checkpoint_retained', chapter: nextChapter, attempt, manuscript: checkpoint.manuscript, reader_review: checkpoint.reader_review, failed_task: error.details.task });
+            if (attempt < config.max_attempts) continue;
+          } else {
+            const active = readJson(path.join(project, transaction.TRANSACTION_FILE), { phase: 'idle' });
+            if (active.phase === 'drafting') {
+              try { transaction.abort(project, { reason: `attempt ${attempt}: ${error.message}` }); } catch (_) { /* retain original failure */ }
+            }
+            clearPostReviewCheckpoint(project);
+            const quarantined = quarantineChapter(project, nextChapter, attempt);
+            if (quarantined.length) event(project, { type: 'failed_chapter_quarantined', chapter: nextChapter, attempt, artifacts: quarantined });
           }
-          const quarantined = quarantineChapter(project, nextChapter, attempt);
-          if (quarantined.length) event(project, { type: 'failed_chapter_quarantined', chapter: nextChapter, attempt, artifacts: quarantined });
           if (attempt < config.max_attempts) continue;
         }
       }

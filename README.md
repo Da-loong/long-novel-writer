@@ -176,6 +176,16 @@ only when it reduces deterministic or cold-reader debt, or raises the
 reader-score by at least 0.25. A plateau restores the stronger prior draft and
 starts a fresh bounded production attempt.
 
+## Post-review retry recovery
+
+Once a chapter has passed deterministic checks and cold reading, the runner
+writes a short-lived, hash-bound `state/post-review-checkpoint.json`. A
+transient fact-extraction failure resumes the accepted draft and reader receipt
+instead of generating a second version of the chapter. This reuse is
+fail-closed: a changed manuscript, chapter card, transaction, report, or
+acceptance status invalidates the checkpoint and takes the normal fresh-draft
+path.
+
 ## Evidence-bound chapter facts
 
 After an accepted chapter passes cold-read and transaction gates, a separate

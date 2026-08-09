@@ -46,6 +46,22 @@ project config.
    required. Reaching `target_words` writes `state/handoff-current.md` and
    changes both runtimes to `complete`/`completed`.
 
+## Post-review recovery receipt
+
+After deterministic checks and an accepted cold-reader report, the runner
+writes `state/post-review-checkpoint.json` before fact extraction. It binds the
+active transaction, chapter-card hash, manuscript path and SHA-256, and the
+accepted reader-report path. If only `mvp-fact-extract` exits transiently, a
+retry retains this receipt and resumes from fact extraction: it does **not**
+ask the writer to make a second Draft A or ask the reader to review unchanged
+prose again.
+
+Any manuscript, chapter-card, transaction, report, or acceptance-state drift
+invalidates the receipt. The runner then follows the ordinary abort/quarantine
+and fresh-draft path. The receipt is removed once the chapter commits or an
+unsafe recovery path aborts, while its retention and resume events remain in
+`state/autopilot-run-ledger.jsonl`.
+
 The runner respects pilot rejection, paused supervision, locked canon and the
 pilot thresholds. A stop is a state transition, not a log message: the exact
 code, reason, current chapter, word count and latest agent transcript remain

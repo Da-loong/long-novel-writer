@@ -159,6 +159,66 @@ test('chapter attempt failure is retried without advancing project state', () =>
   assert.equal(JSON.parse(fs.readFileSync(path.join(project, 'state', 'project-state.json'), 'utf8')).updated_through, 1);
 });
 
+test('a transient post-review fact-extraction failure resumes the accepted draft without a second write or review', () => {
+  const project = projectOf();
+  runner.start(project, { 'max-attempts': '2' });
+  let draftCalls = 0;
+  let readerCalls = 0;
+  let factCalls = 0;
+  const transient = (request) => {
+    if (request.task === 'mvp') draftCalls++;
+    if (request.task === 'mvp-reader-review') readerCalls++;
+    if (request.task === 'mvp-fact-extract') {
+      factCalls++;
+      if (factCalls === 1) {
+        assert.ok(audit(request.project).artifacts.some((item) => item.path === 'state/post-review-checkpoint.json'));
+        return { exitCode: 1, stdout: '', stderr: 'transient fact extractor exit' };
+      }
+    }
+    return fakeAgent(request);
+  };
+  const report = runner.runProject(project, { 'max-chapters': '1', invokeAgent: transient });
+  assert.equal(report.ok, true, JSON.stringify(report));
+  assert.equal(draftCalls, 1);
+  assert.equal(readerCalls, 1);
+  assert.equal(factCalls, 2);
+  const events = fs.readFileSync(path.join(project, 'state', 'autopilot-run-ledger.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  assert.ok(events.some((item) => item.type === 'post_review_checkpoint_retained' && item.attempt === 1 && item.failed_task === 'mvp-fact-extract'));
+  assert.ok(events.some((item) => item.type === 'chapter_resumed_from_post_review_checkpoint'));
+  assert.equal(events.some((item) => item.type === 'failed_chapter_quarantined'), false);
+  assert.equal(fs.existsSync(path.join(project, 'state', 'post-review-checkpoint.json')), false);
+  const state = JSON.parse(fs.readFileSync(path.join(project, 'state', 'autopilot-run.json'), 'utf8'));
+  assert.equal(state.last_event.resumed_from_post_review_checkpoint, true);
+});
+
+test('a changed manuscript invalidates the post-review checkpoint and forces a fresh draft path', () => {
+  const project = projectOf();
+  runner.start(project, { 'max-attempts': '2' });
+  let draftCalls = 0;
+  let readerCalls = 0;
+  let factCalls = 0;
+  const changedAfterReview = (request) => {
+    if (request.task === 'mvp') draftCalls++;
+    if (request.task === 'mvp-reader-review') readerCalls++;
+    if (request.task === 'mvp-fact-extract') {
+      factCalls++;
+      if (factCalls === 1) {
+        const manuscript = fs.readdirSync(path.join(request.project, 'manuscript')).find((name) => /^ch-0001-.+\.md$/i.test(name));
+        fs.appendFileSync(path.join(request.project, 'manuscript', manuscript), '\n\nchanged after cold-reader receipt', 'utf8');
+        return { exitCode: 1, stdout: '', stderr: 'fact extractor failed after manuscript drift' };
+      }
+    }
+    return fakeAgent(request);
+  };
+  const report = runner.runProject(project, { 'max-chapters': '1', invokeAgent: changedAfterReview });
+  assert.equal(report.ok, true, JSON.stringify(report));
+  assert.equal(draftCalls, 2);
+  assert.equal(readerCalls, 2);
+  const events = fs.readFileSync(path.join(project, 'state', 'autopilot-run-ledger.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  assert.equal(events.some((item) => item.type === 'post_review_checkpoint_retained'), false);
+  assert.ok(events.some((item) => item.type === 'failed_chapter_quarantined' && item.attempt === 1));
+});
+
 test('stop writes a resumable reason and status exposes all runtimes', () => {
   const project = projectOf();
   runner.start(project);
