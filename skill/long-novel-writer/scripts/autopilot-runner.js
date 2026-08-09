@@ -20,6 +20,7 @@ const aiPatterns = require('./check-ai-patterns');
 const degeneration = require('./check-degeneration');
 const formatGate = require('./format-gate');
 const handoff = require('./handoff');
+const chapterReaderReview = require('./chapter-reader-review');
 
 const RUN_FILE = 'state/autopilot-run.json';
 const LEDGER_FILE = 'state/autopilot-run-ledger.jsonl';
@@ -37,6 +38,8 @@ const DEFAULTS = {
   panel_attempts: 2,
   review_interval: 10,
   chapter_revision_passes: 2,
+  chapter_reader_review: true,
+  chapter_reader_min_score: 7,
 };
 
 function argsOf(argv) {
@@ -90,6 +93,10 @@ function configOf(project, options = {}) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
   };
+  const boolean = (key, fallback) => {
+    const value = options[key] ?? stored[key] ?? fallback;
+    return !(value === false || value === 0 || ['0', 'false', 'off', 'no'].includes(String(value).trim().toLowerCase()));
+  };
   return {
     ...DEFAULTS,
     ...stored,
@@ -104,6 +111,8 @@ function configOf(project, options = {}) {
     panel_attempts: Math.max(1, Math.floor(number('panel-attempts', number('panel_attempts', DEFAULTS.panel_attempts)))),
     review_interval: Math.max(1, Math.floor(number('review-interval', number('review_interval', DEFAULTS.review_interval)))),
     chapter_revision_passes: Math.max(0, Math.floor(number('chapter-revision-passes', number('chapter_revision_passes', DEFAULTS.chapter_revision_passes)))),
+    chapter_reader_review: boolean('chapter-reader-review', boolean('chapter_reader_review', DEFAULTS.chapter_reader_review)),
+    chapter_reader_min_score: Math.min(10, Math.max(0, number('chapter-reader-min-score', number('chapter_reader_min_score', DEFAULTS.chapter_reader_min_score)))),
   };
 }
 
@@ -291,9 +300,9 @@ function quarantineChapter(project, chapter, attempt) {
   });
 }
 
-function ensureQa(project, chapter, metrics, ai, deg, format, revisionPasses = []) {
+function ensureQa(project, chapter, metrics, ai, deg, format, revisionPasses = [], readerReviews = []) {
   const relative = `analysis/autopilot-qa-ch${String(chapter).padStart(4, '0')}.json`;
-  const payload = { schema_version: '1.1', chapter, metrics, ai_patterns: ai, degeneration: deg, format, revision_passes: revisionPasses, created_at: new Date().toISOString() };
+  const payload = { schema_version: '1.2', chapter, metrics, ai_patterns: ai, degeneration: deg, format, revision_passes: revisionPasses, reader_reviews: readerReviews, created_at: new Date().toISOString() };
   writeJson(path.join(project, relative), payload);
   if (!fs.existsSync(path.join(project, 'analysis', 'qa-report.md'))) atomicWrite(path.join(project, 'analysis', 'qa-report.md'), `# QA chapter ${chapter}\n\n- deterministic report: ${relative}\n`);
   return relative;
@@ -317,7 +326,37 @@ function inspectChapter(manuscript) {
   return { text, metrics, ai, deg, format, quality: criticalQuality(metrics, ai, deg, format) };
 }
 
-function revisionPrompt(project, chapter, manuscript, pass, inspection) {
+function readerReviewPrompt(project, chapter, manuscript, output, minScore) {
+  return [
+    `You are an independent cold reader reviewing Chinese web-novel chapter ${chapter}. Do not edit any file except the requested report.`,
+    `Project root: ${project}`,
+    `Read the manuscript ${relativePath(project, manuscript)}, its binding card state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, reader contract, platform contract, context pack, and current state.`,
+    `Write strict JSON only to ${output}.`,
+    'Schema: {"schema_version":"1.0","chapter":number,"reviewer_id":string,"verdict":"pass|revise","scores":{"clarity":0..10,"continuation":0..10,"fanqie_fit":0..10,"character_agency":0..10,"payoff":0..10},"issues":[{"code":string,"severity":"critical|warning","evidence":string,"repair":string}],"summary":string}.',
+    `Every issue evidence must be an unmodified contiguous literal quote from the manuscript body. Use verdict "revise" for a reader-blocking problem; score each dimension honestly. Scores under ${minScore}, a critical issue, or verdict revise trigger an in-transaction repair.`,
+    'Assess reader comprehension, desire to continue, Fanqie mobile-web-fiction feel, character agency, and whether this chapter delivers a concrete payoff. Do not praise the writer, invent quotes, or put commentary outside the JSON file.',
+  ].join('\n');
+}
+
+function requestReaderReview(project, chapter, manuscript, round, config, options) {
+  if (!config.chapter_reader_review) return { enabled: false, should_revise: false, report: null, relative: null, agent: null };
+  const relative = `analysis/chapter-reader-review-ch${String(chapter).padStart(4, '0')}-r${String(round).padStart(2, '0')}.json`;
+  const agent = invokeAgent(project, 'mvp-reader-review', readerReviewPrompt(project, chapter, manuscript, relative, config.chapter_reader_min_score), config, options);
+  const validated = chapterReaderReview.validate(project, { chapter: String(chapter), file: relative, 'min-score': config.chapter_reader_min_score });
+  return { enabled: true, relative, agent, report: validated.data, should_revise: validated.data.should_revise };
+}
+
+function readerReviewSummary(review, round) {
+  if (!review?.enabled || !review.report) return { enabled: false, round };
+  const report = review.report;
+  return {
+    enabled: true, round, file: review.relative, run_id: review.agent.run_id, verdict: report.verdict, scores: report.scores,
+    review_of: report.review_of, manuscript_sha256: report.manuscript_sha256,
+    low_scores: report.low_scores, critical_issue_count: report.critical_issue_count, should_revise: report.should_revise,
+  };
+}
+
+function revisionPrompt(project, chapter, manuscript, pass, inspection, readerReview = null) {
   const task = pass === 1 ? 'Draft B structural repair' : 'Draft C language repair';
   return [
     `You are the ${task} node for Chinese web-novel chapter ${chapter}.`,
@@ -325,6 +364,7 @@ function revisionPrompt(project, chapter, manuscript, pass, inspection) {
     `Edit only this manuscript: ${relativePath(project, manuscript)}. Keep the same filename and one chapter title.`,
     `Read the binding chapter card at state/chapter-cards/ch-${String(chapter).padStart(4, '0')}.json, the context pack, current state, and the deterministic QA findings below.`,
     `QA findings: ${JSON.stringify(inspection.quality)}`,
+    `Cold-reader findings: ${JSON.stringify(readerReview?.report || { enabled: false })}`,
     'Preserve canon, required beat, character knowledge boundaries, and the end hook. Replace abstract explanation with scene action, choice, consequence, or purposeful dialogue where the findings require it.',
     'Keep Fanqie mobile formatting: plain prose only, short readable paragraphs, concrete action, and a changed ending situation. Update no settings, outline, or project-state files.',
     'Finish by saving the revised manuscript in place. Do not write planning notes into the manuscript.',
@@ -412,21 +452,29 @@ function runChapter(project, config, options, run) {
   let manuscript = files[0];
   let inspection = inspectChapter(manuscript);
   const revisionPasses = [];
-  for (let pass = 1; pass <= config.chapter_revision_passes && !inspection.quality.ok; pass++) {
+  const readerReviews = [];
+  let readerReview = requestReaderReview(project, actualChapter, manuscript, 1, config, options);
+  if (readerReview.agent) agentRuns.push(readerReview.agent);
+  if (readerReview.enabled) readerReviews.push(readerReviewSummary(readerReview, 1));
+  for (let pass = 1; pass <= config.chapter_revision_passes && (!inspection.quality.ok || readerReview.should_revise); pass++) {
     const task = pass === 1 ? 'mvp-structure-revise' : 'mvp-language-revise';
-    const revision = invokeAgent(project, task, revisionPrompt(project, actualChapter, manuscript, pass, inspection), config, options);
+    const revision = invokeAgent(project, task, revisionPrompt(project, actualChapter, manuscript, pass, inspection, readerReview), config, options);
     agentRuns.push(revision);
     files = chapterFiles(project, actualChapter);
     if (files.length !== 1) throw new CliError('CHAPTER_ARTIFACT_SHAPE', `Revision produced an invalid manuscript shape for chapter ${actualChapter}`, { files: files.map((file) => relativePath(project, file)), task });
     manuscript = files[0];
     inspection = inspectChapter(manuscript);
-    revisionPasses.push({ pass, task, run_id: revision.run_id, quality: inspection.quality });
+    readerReview = requestReaderReview(project, actualChapter, manuscript, pass + 1, config, options);
+    if (readerReview.agent) agentRuns.push(readerReview.agent);
+    if (readerReview.enabled) readerReviews.push(readerReviewSummary(readerReview, pass + 1));
+    revisionPasses.push({ pass, task, run_id: revision.run_id, quality: inspection.quality, reader_review: readerReviewSummary(readerReview, pass + 1) });
   }
   const { text, metrics, ai, deg, format, quality } = inspection;
   const wordsBefore = Number(before.word_count || 0);
   const words = wordsBefore + countText(text).chinese_chars;
-  const qa = ensureQa(project, actualChapter, metrics, ai, deg, format, revisionPasses);
+  const qa = ensureQa(project, actualChapter, metrics, ai, deg, format, revisionPasses, readerReviews);
   if (!quality.ok) throw new CliError('CHAPTER_QUALITY_GATE_FAILED', `Chapter ${actualChapter} quality gate failed`, { chapter: actualChapter, quality, qa, revision_passes: revisionPasses });
+  if (readerReview.should_revise) throw new CliError('CHAPTER_READER_REVIEW_FAILED', `Chapter ${actualChapter} cold-reader review still requires revision`, { chapter: actualChapter, qa, reader_review: readerReviewSummary(readerReview, readerReviews.length), revision_passes: revisionPasses });
   const currentStateFile = path.join(project, 'state', 'current-state.md');
   const currentStateBefore = fs.existsSync(currentStateFile) ? fs.readFileSync(currentStateFile, 'utf8') : null;
   commitState(project, actualChapter, words);
@@ -439,12 +487,14 @@ function runChapter(project, config, options, run) {
     try { transaction.abort(project, { reason: `finish failed: ${JSON.stringify(finished.errors)}` }); } catch (_) { /* retain the failure record */ }
     throw new CliError('CHAPTER_POST_GATE_FAILED', `Chapter ${actualChapter} post-gate failed`, { errors: finished.errors, warnings: finished.warnings });
   }
-  workflow.postHoc(project, { chapter: actualChapter, summary: `Chapter ${actualChapter} committed with ${countText(text).chinese_chars} Chinese characters.`, artifacts: `${relativePath(project, manuscript)},${qa},${finished.event.chapter_memory.path}` });
+  const chapterArtifacts = [relativePath(project, manuscript), qa, finished.event.chapter_memory.path, ...readerReviews.filter((item) => item.enabled).map((item) => item.file)];
+  workflow.postHoc(project, { chapter: actualChapter, summary: `Chapter ${actualChapter} committed with ${countText(text).chinese_chars} Chinese characters.`, artifacts: chapterArtifacts.join(',') });
   if (actualChapter === 1) finishWorkflowFirstChapter(project, actualChapter, manuscript, config, options);
-  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, quality }, word_count: words };
+  const readerReviewResult = readerReviewSummary(readerReview, readerReviews.length);
+  const nextState = { ...run, current_chapter: actualChapter, last_event: { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, quality }, word_count: words };
   updateRun(project, nextState);
-  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, word_count: words, quality });
-  return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses };
+  event(project, { type: 'chapter_committed', chapter: actualChapter, manuscript: relativePath(project, manuscript), chapter_memory: finished.event.chapter_memory.path, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses.length, reader_review: readerReviewResult, word_count: words, quality });
+  return { chapter: actualChapter, manuscript, quality, words, agent_run_id: agent.run_id, agent_run_ids: agentRuns.map((item) => item.run_id), revision_passes: revisionPasses, reader_reviews: readerReviews };
 }
 
 function quoteFromChapter(project, chapter) {

@@ -289,3 +289,14 @@ Before a chapter transaction, retain `settings/author-intent.md` as the long-ter
 ## Chapter card and bounded repair
 
 Every transaction creates `state/chapter-cards/ch-XXXX.json` from the beat, due foreshadowing, and character knowledge boundary, then puts it in the critical context tier. The chapter agent follows its three-scene delivery contract. When deterministic draft findings occur, the runner performs bounded Draft B/C repairs before the transaction commits, with every repair recorded in chapter QA. Read `references/operations/chapter-card-and-revision-loop.md`; use `scripts/chapter-card.js` build or validate commands when inspecting a chapter contract.
+
+## Chapter cold-reader review
+
+Every Draft A receives an independent cold-reader report before the runner
+chooses Draft B/C. The reviewer neither writes prose nor changes Canon. The
+report is saved as `analysis/chapter-reader-review-chXXXX-rNN.json`; each issue
+must contain an exact manuscript quote. A score below the project threshold, a
+critical issue, or a `revise` verdict triggers repair and a new review in the
+same chapter transaction. A chapter with an unresolved report never commits.
+Read `references/operations/chapter-reader-review-loop.md`; validate one report
+with `scripts/chapter-reader-review.js`.

@@ -55,11 +55,15 @@ function readJson(file, fallback = {}) {
 }
 
 function dynamicTracked(project) {
-  const roots = [['chapter-memory', 'state/chapter-memory'], ['chapter-cards', 'state/chapter-cards']];
-  return roots.flatMap(([folder, relative]) => {
+  const roots = [
+    { relative: 'state/chapter-memory', match: /^ch-\d{4}\.json$/i },
+    { relative: 'state/chapter-cards', match: /^ch-\d{4}\.json$/i },
+    { relative: 'analysis', match: /^chapter-reader-review-ch\d{4}-r\d{2}\.json$/i },
+  ];
+  return roots.flatMap(({ relative, match }) => {
     const directory = path.join(project, relative);
     if (!fs.existsSync(directory)) return [];
-    return fs.readdirSync(directory).filter((name) => /^ch-\d{4}\.json$/i.test(name)).sort().map((name) => `state/${folder}/${name}`);
+    return fs.readdirSync(directory).filter((name) => match.test(name)).sort().map((name) => `${relative}/${name}`);
   });
 }
 

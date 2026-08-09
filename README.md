@@ -10,7 +10,7 @@
 
 - 版本：`0.3.0-rc.1`
 - 初始基线：`7.5/10`
-- 当前仓库评测：`8.67/10`（69 项自动测试通过，并包含一次三读者前三章盲读前向运行）
+- 当前仓库评测：`8.68/10`（93 项自动测试通过，并包含一次三读者前三章盲读前向运行）
 - 发布门槛：任务级加权评测 `>= 8.5/10`，且无 P0、P1 未关闭问题
 - 支持环境：Windows、Linux；Node.js 20+
 - GitHub：公开仓库已建立；以 `main` 分支 CI 和发布门禁作为合并基线
@@ -139,3 +139,20 @@ Before every chapter transaction, the skill creates a hash-backed chapter card c
 node "$skill\scripts\chapter-card.js" build .\BOOK --chapter 12
 node "$skill\scripts\chapter-card.js" validate .\BOOK --chapter 12
 ```
+
+## Evidence-bound chapter reader review
+
+Each Draft A now receives an independent cold-reader report before it can
+commit. The report scores clarity, continuation, Fanqie fit, character agency,
+and chapter payoff. Every reported issue must quote the manuscript verbatim;
+the validator records the reviewed manuscript SHA-256 and rejects fabricated
+evidence. A weak score, critical issue, or `revise` verdict enters the existing
+bounded Draft B/C repair loop and receives a fresh review round.
+
+```powershell
+node "$skill\scripts\chapter-reader-review.js" validate .\BOOK --chapter 12 --file .\BOOK\analysis\chapter-reader-review-ch0012-r01.json
+```
+
+The default `settings/agent-runner.json` keeps this loop enabled with a minimum
+score of 7. All report rounds are retained under `analysis/` and included by the
+project audit manifest.

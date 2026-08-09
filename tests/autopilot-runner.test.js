@@ -42,6 +42,15 @@ function fakeAgent(request) {
     const chapter = Number(JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'chapter-transaction.json'), 'utf8')).chapter);
     const body = Array.from({ length: 20 }, (_, index) => `段落${index + 1}的雨声砸过铁棚，林越把第${chapter}张欠条拍在柜台上。回应${index + 1}传来时，巷口的灯映出他手背上的水。\n“今天给答案。”对方${index + 1}说。\n选择${index + 1}落下，林越抓起旧秤走向亮着灯的巷口，围观的人让开一条窄路；这一步把下一次选择的代价摆到了所有人面前。`).join('\n\n');
     write(`manuscript/ch-${String(chapter).padStart(4, '0')}-雨夜的欠条.md`, `# 雨夜的欠条\n\n${body}\n`);
+  } else if (request.task === 'mvp-reader-review') {
+    const chapter = Number(JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'chapter-transaction.json'), 'utf8')).chapter);
+    const output = request.prompt.match(/analysis\/chapter-reader-review-ch\d{4}-r\d{2}\.json/)?.[0];
+    assert.ok(output, request.prompt);
+    write(output, JSON.stringify({
+      schema_version: '1.0', chapter, reviewer_id: 'fixture-cold-reader', verdict: 'pass',
+      scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 },
+      issues: [], summary: 'The chapter has a clear pressure change and a next-reading question.',
+    }, null, 2));
   } else if (request.task === 'polish') {
     write('analysis/qa-report.md', '# QA\n\n- chapter gate passed\n');
     write('analysis/reader-metrics.json', JSON.stringify({ schema_version: '1.0', status: 'passed' }));
@@ -125,4 +134,45 @@ test('autopilot repairs a failed draft inside the active chapter transaction', (
   assert.equal(qa.revision_passes[0].task, 'mvp-structure-revise');
   const tasks = fs.readdirSync(path.join(project, 'state', 'agent-runs')).filter((name) => name.endsWith('.json')).map((name) => JSON.parse(fs.readFileSync(path.join(project, 'state', 'agent-runs', name), 'utf8')).task);
   assert.ok(tasks.includes('mvp-structure-revise'));
+});
+
+test('cold-reader evidence triggers an in-transaction repair even when deterministic gates pass', () => {
+  const project = projectOf();
+  runner.start(project, { 'max-attempts': '1', 'chapter-revision-passes': '2' });
+  let readerRounds = 0;
+  const semanticRepairAgent = (request) => {
+    if (request.task === 'mvp-reader-review') {
+      readerRounds++;
+      const output = request.prompt.match(/analysis\/chapter-reader-review-ch\d{4}-r\d{2}\.json/)?.[0];
+      assert.ok(output, request.prompt);
+      const chapter = Number(JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'chapter-transaction.json'), 'utf8')).chapter);
+      const report = readerRounds === 1
+        ? {
+          schema_version: '1.0', chapter, reviewer_id: 'fixture-cold-reader', verdict: 'revise',
+          scores: { clarity: 6, continuation: 6, fanqie_fit: 6, character_agency: 8, payoff: 6 },
+          issues: [{ code: 'FLAT_TENSION', severity: 'warning', evidence: '林越把第1张欠条拍在柜台上。', repair: 'Make the consequence of the choice sharper in the next draft.' }],
+          summary: 'The scene is understandable but lacks enough immediate pull.',
+        }
+        : {
+          schema_version: '1.0', chapter, reviewer_id: 'fixture-cold-reader', verdict: 'pass',
+          scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 }, issues: [], summary: 'Repair addressed the reader concern.',
+        };
+      const file = path.join(request.project, output);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify(report, null, 2), 'utf8');
+      return { exitCode: 0, stdout: '', stderr: '' };
+    }
+    if (request.task === 'mvp-structure-revise') return fakeAgent({ ...request, task: 'mvp' });
+    return fakeAgent(request);
+  };
+  const report = runner.runProject(project, { 'max-chapters': '1', invokeAgent: semanticRepairAgent });
+  assert.equal(report.ok, true, JSON.stringify(report));
+  const qa = JSON.parse(fs.readFileSync(path.join(project, 'analysis', 'autopilot-qa-ch0001.json'), 'utf8'));
+  assert.equal(qa.revision_passes.length, 1);
+  assert.equal(qa.revision_passes[0].task, 'mvp-structure-revise');
+  assert.equal(qa.reader_reviews.length, 2);
+  assert.equal(qa.reader_reviews[0].should_revise, true);
+  assert.equal(qa.reader_reviews[1].should_revise, false);
+  assert.ok(fs.existsSync(path.join(project, 'analysis', 'chapter-reader-review-ch0001-r01.json')));
+  assert.ok(fs.existsSync(path.join(project, 'analysis', 'chapter-reader-review-ch0001-r02.json')));
 });

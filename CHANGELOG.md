@@ -2,6 +2,15 @@
 
 All notable changes are recorded here. Versions follow Semantic Versioning for the repository tooling and skill contract.
 
+## Unreleased
+
+### Added
+
+- Evidence-bound, per-chapter cold-reader reports with five reader-facing scores,
+  literal-prose issue anchors, manuscript hashes, and audit-manifest coverage.
+- Bounded Draft B/C repair now responds to a validated reader verdict as well as
+  deterministic format and degeneration checks.
+
 ## 0.2.0-rc.1 - 2026-08-06
 
 ### Added
