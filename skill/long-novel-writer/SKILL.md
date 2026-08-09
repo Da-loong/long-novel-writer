@@ -377,3 +377,14 @@ It flags repeated hook/reward shapes, sustained high pressure, and missing
 release beats without forcing a formula onto the novel. Read
 `references/operations/pacing-ledger.md`; inspect with
 `scripts/pacing-ledger.js` using `audit <PROJECT>`.
+
+## Focused editorial dimensions
+
+The unattended cold-reader report uses schema `1.4` and includes eight
+literal-evidence editorial dimensions: character consistency, information
+boundary, causal chain, outline delivery, dialogue tension,
+action-over-summary, canon continuity, and next-read boundary. A failed
+editorial dimension forces bounded revision; a repair candidate must reduce
+these failures before a score-only improvement is accepted. Read
+`references/operations/editorial-dimension-loop.md` before changing the
+reader schema, revision selection, or chapter quality policy.

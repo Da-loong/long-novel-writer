@@ -8,6 +8,7 @@ const test = require('node:test');
 const { spawnSync } = require('node:child_process');
 const runner = require('../skill/long-novel-writer/scripts/autopilot-runner');
 const { audit } = require('../skill/long-novel-writer/scripts/project-audit');
+const chapterReaderReview = require('../skill/long-novel-writer/scripts/chapter-reader-review');
 
 function projectOf() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lnw-autopilot-'));
@@ -29,6 +30,20 @@ function sceneEvidence(chapter) {
   };
 }
 
+function contractReviewFields(request, chapter) {
+  const manuscript = fs.readdirSync(path.join(request.project, 'manuscript')).find((name) => new RegExp(`^ch-${String(chapter).padStart(4, '0')}-`).test(name));
+  const body = fs.readFileSync(path.join(request.project, 'manuscript', manuscript), 'utf8');
+  const evidence = `林越把第${chapter}张欠条拍在柜台上。`;
+  const style = JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'style-contract.json'), 'utf8')).signals || [];
+  const characters = JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'character-contracts.json'), 'utf8')).characters || [];
+  return {
+    schema_version: '1.4',
+    style_signal_checks: style.map((signal) => ({ id: signal.id, verdict: 'pass', evidence, note: 'The chapter opens with a concrete action before exposition.' })),
+    character_contract_checks: characters.filter((character) => body.includes(character.name)).map((character) => ({ id: character.id, verdict: 'pass', evidence, note: 'The lead acts toward the debt problem under immediate pressure without claiming hidden knowledge.' })),
+    editorial_dimension_checks: chapterReaderReview.EDITORIAL_DIMENSIONS.map((dimension) => ({ id: dimension.id, verdict: 'pass', evidence, note: `The prose supplies literal scene evidence for ${dimension.id}.` })),
+  };
+}
+
 function fakeAgent(request) {
   const write = (relative, content) => {
     const file = path.join(request.project, relative);
@@ -42,9 +57,11 @@ function fakeAgent(request) {
   } else if (request.task === 'character') {
     write('settings/characters.md', '# Characters\n\n## Lead\nLin chooses action over safety.\n');
     write('settings/relations.md', '# Relations\n\n| A | B | pressure |\n|---|---|---|\n| Lin | debt collector | rising |\n');
+    write('evidence/derivations/character-contracts.md', '# Character contracts\n\n| Name | Goal | Pressure/motivation | Knowledge boundary | Voice/action | Forbidden | Scope | Status |\n|---|---|---|---|---|---|---|---|\n| 林越 | 解决欠条危机 | 对方逼索答案 | 只知道眼前欠条的风险 | 短句先行动 | 不预知对手背景 | opening | adopted |\n');
   } else if (request.task === 'story-plan') {
     write('outline/master-outline.md', '# Master outline\n\n## Arc\nA debt turns into a public choice and a larger mystery.\n');
     write('settings/style-guide.md', '# Style guide\n\n## Voice\nConcrete action, short paragraphs, purposeful dialogue.\n');
+    write('evidence/derivations/style-signals.md', '# Style signals\n\n| ID | Dimension | Reusable signal | Evidence | Scope | Status |\n|---|---|---|---|---|---|\n| STYLE-OPEN | narrative | Open with concrete action before background explanation. | analysis/breakdown.md#opening | opening | adopted |\n');
   } else if (request.task === 'outline') {
     const rows = [1, 2, 3].map((n) => `| ${n} | Lin | open a new problem | a visible obstacle | a hard choice | a cost | one new fact | pressure rises | a changed question |`).join('\n');
     write('outline/chapter-beats.md', `# Chapter beats\n\n| No | POV | Goal | Obstacle | Turn | Cost | Information | Emotion | Hook |\n|---:|---|---|---|---|---|---|---|---|\n${rows}\n`);
@@ -58,7 +75,7 @@ function fakeAgent(request) {
     const output = request.prompt.match(/analysis\/chapter-reader-review-ch\d{4}-r\d{2}\.json/)?.[0];
     assert.ok(output, request.prompt);
     write(output, JSON.stringify({
-      schema_version: '1.0', chapter, reviewer_id: 'fixture-cold-reader', verdict: 'pass',
+      ...contractReviewFields(request, chapter), chapter, reviewer_id: 'fixture-cold-reader', verdict: 'pass',
       scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 },
       scene_evidence: sceneEvidence(chapter),
       rhythm: { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' },
@@ -183,7 +200,7 @@ test('cold-reader evidence triggers an in-transaction repair even when determini
       const chapter = Number(JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'chapter-transaction.json'), 'utf8')).chapter);
       const report = readerRounds === 1
         ? {
-          schema_version: '1.0', chapter, reviewer_id: 'fixture-cold-reader', verdict: 'revise',
+          ...contractReviewFields(request, chapter), chapter, reviewer_id: 'fixture-cold-reader', verdict: 'revise',
           scores: { clarity: 6, continuation: 6, fanqie_fit: 6, character_agency: 8, payoff: 6 },
           scene_evidence: sceneEvidence(chapter),
           rhythm: { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' },
@@ -191,7 +208,7 @@ test('cold-reader evidence triggers an in-transaction repair even when determini
           summary: 'The scene is understandable but lacks enough immediate pull.',
         }
         : {
-          schema_version: '1.0', chapter, reviewer_id: 'fixture-cold-reader', verdict: 'pass',
+          ...contractReviewFields(request, chapter), chapter, reviewer_id: 'fixture-cold-reader', verdict: 'pass',
           scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 }, scene_evidence: sceneEvidence(chapter), rhythm: { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' }, issues: [], summary: 'Repair addressed the reader concern.',
         };
       const file = path.join(request.project, output);
@@ -223,6 +240,41 @@ test('cold-reader evidence triggers an in-transaction repair even when determini
   assert.ok(auditPaths.includes('state/chapter-revisions/ch-0001-r01.json'));
 });
 
+test('an editorial-dimension failure triggers a transaction repair even with passing scores', () => {
+  const project = projectOf();
+  runner.start(project, { 'max-attempts': '1', 'chapter-revision-passes': '2' });
+  let readerRounds = 0;
+  const editorialRepairAgent = (request) => {
+    if (request.task === 'mvp-reader-review') {
+      readerRounds++;
+      const output = request.prompt.match(/analysis\/chapter-reader-review-ch\d{4}-r\d{2}\.json/)?.[0];
+      const chapter = Number(JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'chapter-transaction.json'), 'utf8')).chapter);
+      const checks = contractReviewFields(request, chapter).editorial_dimension_checks.map((check) => check.id === 'outline_delivery'
+        ? { ...check, verdict: readerRounds === 1 ? 'fail' : 'pass', note: readerRounds === 1 ? 'The decisive movement remains summarized.' : 'The decisive movement is now dramatized.' }
+        : check);
+      const report = {
+        ...contractReviewFields(request, chapter), chapter, reviewer_id: 'editorial-fixture', verdict: readerRounds === 1 ? 'revise' : 'pass',
+        editorial_dimension_checks: checks,
+        scores: { clarity: 8, continuation: 8, fanqie_fit: 8, character_agency: 8, payoff: 8 },
+        scene_evidence: sceneEvidence(chapter), rhythm: { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' }, issues: [],
+        summary: readerRounds === 1 ? 'The chapter needs its planned turn on the page.' : 'The revision delivers the planned turn.',
+      };
+      const file = path.join(request.project, output);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify(report, null, 2), 'utf8');
+      return { exitCode: 0, stdout: '', stderr: '' };
+    }
+    if (request.task === 'mvp-structure-revise') return fakeAgent({ ...request, task: 'mvp' });
+    return fakeAgent(request);
+  };
+  const result = runner.runProject(project, { 'max-chapters': '1', invokeAgent: editorialRepairAgent });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const qa = JSON.parse(fs.readFileSync(path.join(project, 'analysis', 'autopilot-qa-ch0001.json'), 'utf8'));
+  assert.equal(qa.revision_passes.length, 1);
+  assert.deepEqual(qa.reader_reviews[0].editorial_dimension_failures, ['outline_delivery']);
+  assert.match(fs.readFileSync(path.join(project, 'analysis', 'chapter-revision-brief-ch0001-r01.md'), 'utf8'), /Editorial outline_delivery/);
+});
+
 test('unimproved cold-reader repair is discarded and leaves the previous draft as the candidate', () => {
   const project = projectOf();
   runner.start(project, { 'max-attempts': '1', 'chapter-revision-passes': '2' });
@@ -234,7 +286,7 @@ test('unimproved cold-reader repair is discarded and leaves the previous draft a
       const file = path.join(request.project, output);
       fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, JSON.stringify({
-        schema_version: '1.0', chapter, reviewer_id: 'plateau-reader', verdict: 'revise',
+        ...contractReviewFields(request, chapter), chapter, reviewer_id: 'plateau-reader', verdict: 'revise',
         scores: { clarity: 6, continuation: 6, fanqie_fit: 6, character_agency: 8, payoff: 6 },
         scene_evidence: sceneEvidence(chapter),
         rhythm: { pressure: 'rising', hook_type: 'choice', payoff_type: 'progress' },

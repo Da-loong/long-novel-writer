@@ -88,3 +88,19 @@ test('missing visible payoff forces revision and blocks a pass verdict', () => {
   }), null, 2), 'utf8');
   assert.throws(() => readerReview.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_READER_REVIEW_INVALID');
 });
+
+test('schema 1.4 binds a focused editorial-dimension pass to literal chapter evidence', () => {
+  const project = fixtureProject();
+  const relative = 'analysis/chapter-reader-review-ch0001-r01.json';
+  const evidence = '林越把欠条按在柜台上，雨水顺着他的手背滴落。';
+  const complete = readerReview.EDITORIAL_DIMENSIONS.map((dimension) => ({
+    id: dimension.id, verdict: 'pass', evidence, note: `Literal scene evidence supports ${dimension.id}.`,
+  }));
+  fs.writeFileSync(path.join(project, relative), JSON.stringify(report({ schema_version: '1.4' }), null, 2), 'utf8');
+  assert.throws(() => readerReview.validate(project, { chapter: '1', file: relative }), (error) => error.code === 'CHAPTER_READER_REVIEW_INVALID');
+  fs.writeFileSync(path.join(project, relative), JSON.stringify(report({ schema_version: '1.4', verdict: 'revise', editorial_dimension_checks: complete.map((item) => item.id === 'outline_delivery' ? { ...item, verdict: 'fail', note: 'The prose summarizes the promised decisive movement.' } : item) }), null, 2), 'utf8');
+  const result = readerReview.validate(project, { chapter: '1', file: relative });
+  assert.equal(result.data.schema_version, '1.4');
+  assert.deepEqual(result.data.editorial_dimension_failures, ['outline_delivery']);
+  assert.equal(result.data.should_revise, true);
+});

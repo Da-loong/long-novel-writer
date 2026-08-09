@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "workflow_id": "book-production",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Deterministic orchestration contract for a long-form web-novel project.",
   "policy": {
     "freeze_definition_on_start": true,
@@ -35,14 +35,15 @@
     {
       "id": "character",
       "type": "agent",
-      "purpose": "Create character goals, voices, relations and conflict dependencies.",
+      "purpose": "Create character goals, voices, relations, conflict dependencies, and adopted character agency contracts.",
       "inputs": [
         "settings/story-bible.md",
         "settings/reader-contract.md"
       ],
       "outputs": [
         "settings/characters.md",
-        "settings/relations.md"
+        "settings/relations.md",
+        "evidence/derivations/character-contracts.md"
       ],
       "retry": {
         "automatic": 1,
@@ -52,7 +53,7 @@
     {
       "id": "story-plan",
       "type": "agent",
-      "purpose": "Turn the premise into a commercial promise, progression and style plan.",
+      "purpose": "Turn the premise into a commercial promise, progression, style plan, and evidence-backed adopted style signals.",
       "inputs": [
         "settings/story-bible.md",
         "settings/author-intent.md",
@@ -61,7 +62,8 @@
       ],
       "outputs": [
         "outline/master-outline.md",
-        "settings/style-guide.md"
+        "settings/style-guide.md",
+        "evidence/derivations/style-signals.md"
       ],
       "retry": {
         "automatic": 1,

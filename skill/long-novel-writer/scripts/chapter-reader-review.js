@@ -24,6 +24,19 @@ const PAYOFF_TYPES = new Set(['answer', 'win', 'loss', 'resource', 'relationship
 const FEEDBACK_RULE_VERDICTS = new Set(['pass', 'fail', 'not_applicable']);
 const STYLE_SIGNAL_VERDICTS = new Set(['pass', 'fail', 'not_applicable']);
 const CHARACTER_CONTRACT_VERDICTS = new Set(['pass', 'fail', 'not_applicable']);
+const EDITORIAL_DIMENSION_VERDICTS = new Set(['pass', 'fail', 'not_applicable']);
+// A focused, evidence-bound subset of the multi-dimensional editorial pass is
+// stronger than a free-form omnibus scorecard for unattended serial writing.
+const EDITORIAL_DIMENSIONS = [
+  { id: 'character_consistency', label: 'Character action remains consistent with the binding chapter card and current state.', allow_na: false },
+  { id: 'information_boundary', label: 'POV knowledge and deductions stay within on-page knowledge boundaries.', allow_na: false },
+  { id: 'causal_chain', label: 'The goal, obstacle, choice or turn form a visible causal chain.', allow_na: false },
+  { id: 'outline_delivery', label: 'The chapter delivers its assigned beat without replacing it with a summary or skipping its decisive movement.', allow_na: false },
+  { id: 'dialogue_tension', label: 'When dialogue appears, it carries conflict, leverage, evasion, or a relationship shift.', allow_na: true },
+  { id: 'action_over_summary', label: 'The chapter uses dramatized action, reaction, and consequence rather than chronological summary.', allow_na: false },
+  { id: 'canon_continuity', label: 'On-page facts remain compatible with the supplied canon and immediate chapter context.', allow_na: false },
+  { id: 'next_read_boundary', label: 'The ending opens a concrete next question without consuming a later planned resolution.', allow_na: false },
+];
 
 function argsOf(argv) {
   const args = {};
@@ -179,9 +192,36 @@ function validateCharacterContractChecks(value, characters, manuscript, chapter)
   return checks;
 }
 
+function validateEditorialDimensionChecks(value, manuscript, chapter, required = false) {
+  if (value === undefined || value === null) {
+    if (required) invalid('Reader review schema 1.4 must include every editorial dimension check', { chapter, required_dimensions: EDITORIAL_DIMENSIONS.map((item) => item.id) });
+    return [];
+  }
+  if (!Array.isArray(value)) invalid('Reader review editorial_dimension_checks must be an array', { chapter });
+  const byId = new Map(EDITORIAL_DIMENSIONS.map((item) => [item.id, item]));
+  const seen = new Set();
+  const checks = value.map((check, index) => {
+    if (!check || typeof check !== 'object' || Array.isArray(check)) invalid('Editorial dimension check must be an object', { chapter, index });
+    const id = String(check.id || '').trim();
+    const verdict = String(check.verdict || '').trim();
+    const evidence = String(check.evidence || '').trim();
+    const note = String(check.note || '').trim();
+    const dimension = byId.get(id);
+    if (!dimension || seen.has(id)) invalid('Editorial dimension check ID must match the fixed review slice exactly once', { chapter, index, id, required_dimensions: [...byId.keys()] });
+    if (!EDITORIAL_DIMENSION_VERDICTS.has(verdict) || !note || note.length > 800) invalid('Editorial dimension check needs a valid verdict and concise note', { chapter, index, id, verdict });
+    if (evidence && !manuscript.body.includes(evidence)) invalid('Editorial dimension evidence must be a literal manuscript excerpt', { chapter, index, id, evidence });
+    if (verdict !== 'not_applicable' && !evidence) invalid('Applicable editorial dimension check requires literal manuscript evidence', { chapter, index, id, verdict });
+    if (verdict === 'not_applicable' && !dimension.allow_na) invalid('This editorial dimension is always applicable for a drafted chapter', { chapter, index, id });
+    seen.add(id);
+    return { id, verdict, evidence, note, label: dimension.label };
+  });
+  if (required && seen.size !== byId.size) invalid('Reader review is missing a required editorial dimension check', { chapter, checked: [...seen], required_dimensions: [...byId.keys()] });
+  return checks;
+}
+
 function validateData(data, manuscript, chapter, minScore, rules = [], signals = [], characters = []) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) invalid('Reader review must be a JSON object', { chapter });
-  if (!['1.0', '1.1', '1.2', '1.3'].includes(String(data.schema_version || ''))) invalid('Reader review schema_version must be 1.0, 1.1, 1.2, or 1.3', { chapter, schema_version: data.schema_version });
+  if (!['1.0', '1.1', '1.2', '1.3', '1.4'].includes(String(data.schema_version || ''))) invalid('Reader review schema_version must be 1.0, 1.1, 1.2, 1.3, or 1.4', { chapter, schema_version: data.schema_version });
   if (Number(data.chapter) !== Number(chapter)) invalid('Reader review chapter does not match manuscript', { expected: Number(chapter), actual: data.chapter });
   if (!String(data.reviewer_id || '').trim()) invalid('Reader review reviewer_id is required', { chapter });
   if (!VERDICTS.has(data.verdict)) invalid('Reader review verdict must be pass or revise', { chapter, verdict: data.verdict });
@@ -196,6 +236,7 @@ function validateData(data, manuscript, chapter, minScore, rules = [], signals =
   const feedbackChecks = validateFeedbackRuleChecks(data.feedback_rule_checks, rules, manuscript, chapter);
   const styleChecks = validateStyleSignalChecks(data.style_signal_checks, signals, manuscript, chapter);
   const characterChecks = validateCharacterContractChecks(data.character_contract_checks, characters, manuscript, chapter);
+  const editorialChecks = validateEditorialDimensionChecks(data.editorial_dimension_checks, manuscript, chapter, String(data.schema_version) === '1.4');
   if (!Array.isArray(data.issues)) invalid('Reader review issues must be an array', { chapter });
   const seen = new Set();
   for (const [index, issue] of data.issues.entries()) {
@@ -218,12 +259,14 @@ function validateData(data, manuscript, chapter, minScore, rules = [], signals =
   const feedbackFailures = feedbackChecks.filter((check) => check.verdict === 'fail');
   const styleFailures = styleChecks.filter((check) => check.verdict === 'fail');
   const characterFailures = characterChecks.filter((check) => check.verdict === 'fail');
+  const editorialFailures = editorialChecks.filter((check) => check.verdict === 'fail');
   if (data.verdict === 'pass' && feedbackFailures.length) invalid('Pass review cannot fail a due feedback rule', { chapter, failed_rule_ids: feedbackFailures.map((check) => check.id) });
   if (data.verdict === 'pass' && styleFailures.length) invalid('Pass review cannot fail a due style signal', { chapter, failed_signal_ids: styleFailures.map((check) => check.id) });
   if (data.verdict === 'pass' && characterFailures.length) invalid('Pass review cannot fail a due character contract', { chapter, failed_character_ids: characterFailures.map((check) => check.id) });
-  const shouldRevise = data.verdict === 'revise' || lowScores.length > 0 || criticalIssues.length > 0 || missingScene.length > 0 || feedbackFailures.length > 0 || styleFailures.length > 0 || characterFailures.length > 0;
+  if (data.verdict === 'pass' && editorialFailures.length) invalid('Pass review cannot fail an editorial dimension', { chapter, failed_dimension_ids: editorialFailures.map((check) => check.id) });
+  const shouldRevise = data.verdict === 'revise' || lowScores.length > 0 || criticalIssues.length > 0 || missingScene.length > 0 || feedbackFailures.length > 0 || styleFailures.length > 0 || characterFailures.length > 0 || editorialFailures.length > 0;
   return {
-    schema_version: '1.3',
+    schema_version: '1.4',
     chapter: Number(chapter),
     reviewer_id: String(data.reviewer_id).trim(),
     verdict: data.verdict,
@@ -239,6 +282,9 @@ function validateData(data, manuscript, chapter, minScore, rules = [], signals =
     character_contract_checks: characterChecks,
     character_contracts_due: characters.map((character) => ({ id: character.id, name: character.name, goal: character.goal, pressure: character.pressure, knowledge_boundary: character.knowledge_boundary, voice_and_action: character.voice_and_action, forbidden: character.forbidden })),
     character_contract_failures: characterFailures.map((check) => check.id),
+    editorial_dimension_checks: editorialChecks,
+    editorial_dimensions_due: EDITORIAL_DIMENSIONS.map((dimension) => ({ id: dimension.id, label: dimension.label, allow_not_applicable: dimension.allow_na })),
+    editorial_dimension_failures: editorialFailures.map((check) => check.id),
     issues: data.issues.map((issue) => ({ code: String(issue.code).trim(), severity: issue.severity, evidence: String(issue.evidence).trim(), repair: String(issue.repair).trim() })),
     summary: String(data.summary || '').trim(),
     review_of: manuscript.relative,
@@ -281,4 +327,4 @@ if (require.main === module) {
   try { run(); } catch (error) { process.exitCode = emitError(error, 'chapter-reader-review'); }
 }
 
-module.exports = { REQUIRED_SCORES, REQUIRED_SCENE_EVIDENCE, PRESSURES, HOOK_TYPES, PAYOFF_TYPES, FEEDBACK_RULE_VERDICTS, STYLE_SIGNAL_VERDICTS, CHARACTER_CONTRACT_VERDICTS, argsOf, chapterId, manuscriptOf, reviewPath, validateSceneEvidence, validateRhythm, validateFeedbackRuleChecks, validateStyleSignalChecks, validateCharacterContractChecks, validateData, validate, run };
+module.exports = { REQUIRED_SCORES, REQUIRED_SCENE_EVIDENCE, PRESSURES, HOOK_TYPES, PAYOFF_TYPES, FEEDBACK_RULE_VERDICTS, STYLE_SIGNAL_VERDICTS, CHARACTER_CONTRACT_VERDICTS, EDITORIAL_DIMENSION_VERDICTS, EDITORIAL_DIMENSIONS, argsOf, chapterId, manuscriptOf, reviewPath, validateSceneEvidence, validateRhythm, validateFeedbackRuleChecks, validateStyleSignalChecks, validateCharacterContractChecks, validateEditorialDimensionChecks, validateData, validate, run };
