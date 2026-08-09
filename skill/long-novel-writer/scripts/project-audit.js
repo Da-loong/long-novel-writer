@@ -13,6 +13,7 @@ const TRACKED = [
   'analysis/reader-rejection-2026-08-08.md',
   'outline/master-outline.md',
   'outline/chapter-beats.md',
+  'outline/plot-units.md',
   'settings/reader-contract.md',
   'settings/platform-contract.md',
   'settings/platform-classroom-map.md',
@@ -47,6 +48,7 @@ const TRACKED = [
   'state/quality-guidance.json',
   'state/repair-debt-ledger.json',
   'state/repair-debt-guidance.json',
+  'state/plot-unit-window.json',
 ];
 
 function argsOf(argv) {

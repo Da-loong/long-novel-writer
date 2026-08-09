@@ -290,6 +290,8 @@ Before a chapter transaction, retain `settings/author-intent.md` as the long-ter
 
 ## Chapter card and bounded repair
 
+Every transaction refreshes the optional `outline/plot-units.md` plan into `state/plot-unit-window.json`; the active unit is carried into the card and critical context tier without overriding the chapter beat, Canon, reader, platform, or literal-evidence gates. A missing plan stays visibly disabled for imported projects; a malformed or overlapping plan stops drafting. Read `references/operations/plot-unit-window.md` when planning or auditing this middle layer.
+
 Every transaction creates `state/chapter-cards/ch-XXXX.json` from the beat, due foreshadowing, and character knowledge boundary, then puts it in the critical context tier. In addition to a three-scene delivery contract, it compiles seven exact chapter obligations: assigned goal, obstacle, turn, cost, information, emotion, and end hook. When deterministic draft findings occur, the runner performs bounded Draft B/C repairs before the transaction commits, with every repair recorded in chapter QA. Read `references/operations/chapter-card-and-revision-loop.md` and `references/operations/chapter-obligation-loop.md`; use `scripts/chapter-card.js` build or validate commands when inspecting a chapter contract.
 
 ## Chapter cold-reader review

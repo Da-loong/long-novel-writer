@@ -71,6 +71,7 @@ function fakeAgent(request) {
   } else if (request.task === 'outline') {
     const rows = [1, 2, 3].map((n) => `| ${n} | Lin | open a new problem | a visible obstacle | a hard choice | a cost | one new fact | pressure rises | a changed question |`).join('\n');
     write('outline/chapter-beats.md', `# Chapter beats\n\n| No | POV | Goal | Obstacle | Turn | Cost | Information | Emotion | Hook |\n|---:|---|---|---|---|---|---|---|---|\n${rows}\n`);
+    write('outline/plot-units.md', '# Plot units\n\n| ID | Start | End | Primary drive | Setup | Turn | Payoff | Next |\n|---|---:|---:|---|---|---|---|---|\n| U-01 | 1 | 3 | solve the debt crisis | establish receipt danger | public choice exposes a witness | force a visible debt consequence | larger creditor mystery |\n');
     write('outline/foreshadowing-ledger.md', '# Foreshadowing\n\n| ID | First | Content | Strength | Payoff | Status |\n|---|---:|---|---:|---:|---|\n| F1 | 1 | the receipt | 1 | 3 | open |\n');
   } else if (request.task === 'mvp') {
     const chapter = Number(JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'chapter-transaction.json'), 'utf8')).chapter);

@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "workflow_id": "book-production",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Deterministic orchestration contract for a long-form web-novel project.",
   "policy": {
     "freeze_definition_on_start": true,
@@ -73,12 +73,13 @@
     {
       "id": "outline",
       "type": "agent",
-      "purpose": "Generate volume outlines, chapter beats and foreshadowing ledger.",
+      "purpose": "Generate volume outlines, plot-unit plan, chapter beats and foreshadowing ledger.",
       "inputs": [
         "outline/master-outline.md",
         "settings/relations.md"
       ],
       "outputs": [
+        "outline/plot-units.md",
         "outline/chapter-beats.md",
         "outline/foreshadowing-ledger.md"
       ],

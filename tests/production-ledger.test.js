@@ -49,6 +49,7 @@ test('begin transaction builds context and locks the chapter before drafting', (
   assert.ok(fs.existsSync(path.join(project, 'state', 'context-pack.md')));
   assert.ok(fs.existsSync(path.join(project, 'state', 'chapter-cards', 'ch-0001.json')));
   assert.ok(fs.existsSync(report.chapter_card));
+  assert.ok(fs.existsSync(report.plot_unit));
   const current = status(project);
   assert.equal(current.transaction.phase, 'drafting');
   assert.equal(current.transaction.feedback_rules.rule_count, 1);
@@ -61,6 +62,8 @@ test('begin transaction builds context and locks the chapter before drafting', (
   assert.match(current.transaction.quality_trend.path, /quality-trend-ledger\.json$/);
   assert.match(current.transaction.quality_trend.guidance_path, /quality-guidance\.json$/);
   assert.equal(current.transaction.repair_debt.entries, 0);
+  assert.equal(current.transaction.plot_unit.enabled, false);
+  assert.match(current.transaction.plot_unit.path, /plot-unit-window\.json$/);
   assert.match(current.transaction.repair_debt.path, /repair-debt-ledger\.json$/);
   assert.match(current.transaction.repair_debt.guidance_path, /repair-debt-guidance\.json$/);
   assert.ok(current.transaction.canon['evidence/derivations/style-signals.md']);
@@ -74,6 +77,7 @@ test('begin transaction builds context and locks the chapter before drafting', (
   assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /resource-window\.json/);
   assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /quality-guidance\.json/);
   assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /repair-debt-guidance\.json/);
+  assert.match(fs.readFileSync(path.join(project, 'state', 'context-pack.md'), 'utf8'), /plot-unit-window\.json/);
   assert.equal(current.has_active_transaction, true);
   assert.equal(current.next_action, 'finish --chapter 1');
 });
