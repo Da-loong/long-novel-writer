@@ -320,6 +320,17 @@ function archivePreproductionArtifact(project, relative, reason) {
   return relativePath(project, target);
 }
 
+function validatePreproductionNode(project, id) {
+  if (id === 'breakdown') {
+    const report = require('./deep-breakdown-gate').validate(project);
+    if (!report.ok) throw new CliError('DEEP_BREAKDOWN_NODE_INVALID', 'Breakdown evidence is structurally incomplete', { errors: report.errors });
+  }
+  if (id === 'feature-matrix') {
+    const dna = require('./book-dna').compile(project);
+    if (dna.mechanism_count < 6 || dna.dimension_count < 3) throw new CliError('BOOK_DNA_NODE_INVALID', 'Feature matrix compiled below the Book DNA floor', { mechanism_count: dna.mechanism_count, dimension_count: dna.dimension_count, warnings: dna.warnings });
+  }
+}
+
 function preproduction(project, config, options, state) {
   const done = new Set(state.completed_preproduction_nodes || []);
   // A previous agent may have created placeholder/empty evidence files and
@@ -370,6 +381,7 @@ function preproduction(project, config, options, state) {
           invokeAgent(project, id, preproductionPrompt(project, id), config, options);
         }
         artifactFiles(project, outputs[id]);
+        validatePreproductionNode(project, id);
         done.add(id); state.completed_preproduction_nodes = [...done];
         updateRun(project, { completed_preproduction_nodes: state.completed_preproduction_nodes, last_event: { type: 'preproduction_node_completed', node: id } });
         event(project, { type: 'preproduction_node_completed', node: id, artifacts: outputs[id] }); success = true; break;
