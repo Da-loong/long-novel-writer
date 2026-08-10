@@ -17,7 +17,7 @@ python -m playwright install chromium
 ## 证据规则
 
 1. 每个榜单页面保存原始 HTML、采集时间、页面 URL、解析模式和警告到 `evidence/snapshots/`。
-2. 采集少于 10 本、标题仍含 PUA 字符、字体解码低置信时，`preproduction-gate` 停止标杆池链路；不把搜索摘要或模型猜测写入榜单。
+2. 采集少于 10 本、标题仍含 PUA 字符、字体依赖/资产缺失时，`preproduction-gate` 停止标杆池链路；低置信字形作为带计数和样本的警告保留，不把搜索摘要或模型猜测写入榜单。
 3. 已登录 Chrome 可通过 `settings/market-sources.json` 的 `cdp` 与 `persistent_dir` 字段接入；连接失败会记录原因并使用官方 SSR，不静默伪造动态结果。
 4. 所有选书必须回指 `analysis/ranking-snapshot.json` 的条目和证据文件，之后才进入 10–20 本标杆池。
 
@@ -27,4 +27,3 @@ python -m playwright install chromium
 node scripts/rank-scan.js --adapter crawl4ai --project <PROJECT>
 node scripts/deep-breakdown-gate.js <PROJECT>
 ```
-

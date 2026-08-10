@@ -87,8 +87,11 @@ function validate(projectInput) {
 
 function run(argv = process.argv.slice(2)) {
   const args = argsOf(argv);
-  if (!args.project) throw new CliError('USAGE', 'Usage: node production-readiness.js <PROJECT>');
-  const report = validate(args.project);
+  // Accept both `check <PROJECT>` and the shorter `<PROJECT>` form. Claude
+  // commonly emits the former while operators often use the latter.
+  const project = args.project || (args.command && args.command !== 'check' ? args.command : null);
+  if (!project) throw new CliError('USAGE', 'Usage: node production-readiness.js check <PROJECT>');
+  const report = validate(project);
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   if (!report.ok) process.exitCode = 3;
   return report;

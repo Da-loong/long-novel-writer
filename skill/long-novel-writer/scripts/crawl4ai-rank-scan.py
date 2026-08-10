@@ -41,7 +41,11 @@ def initial_state(html):
     if end < 0:
         return {}
     try:
-        return json.loads(html[match.end():end])
+        # Fanqie SSR serializes a few optional JS values as `undefined`, which
+        # is valid in the page script but not JSON. Preserve those fields as
+        # null so the embedded ranked rows remain machine-readable.
+        payload = re.sub(r":\s*undefined\b", ":null", html[match.end():end])
+        return json.loads(payload)
     except json.JSONDecodeError:
         return {}
 
@@ -53,9 +57,26 @@ def needs_decode(text):
 def cached_download(url, path):
     if os.path.exists(path) and os.path.getsize(path) > 1024:
         return path
+    # Never leave a zero-byte/partial asset in the cache: a transient GitHub
+    # or CDN response must be retried on the next run.
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    partial = path + ".part"
+    if os.path.exists(partial):
+        try:
+            os.remove(partial)
+        except OSError:
+            pass
     request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urlopen(request, timeout=90) as response, open(path, "wb") as out:
+    with urlopen(request, timeout=90) as response, open(partial, "wb") as out:
         shutil.copyfileobj(response, out)
+    if os.path.getsize(partial) <= 1024:
+        os.remove(partial)
+        raise RuntimeError(f"downloaded font asset is empty: {url}")
+    os.replace(partial, path)
     return path
 
 
@@ -70,7 +91,7 @@ def glyph_bitmap(font, char, image, draw, np):
     return np.asarray(image.crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1)).resize((32, 32), Image.Resampling.LANCZOS))
 
 
-def build_font_map(html, cache_dir):
+def build_font_map(html, cache_dir, reference_override=None):
     """Decode Fanqie's PUA glyphs using its embedded Source Han subset; cached by font asset."""
     if not needs_decode(html):
         return {}, []
@@ -93,7 +114,7 @@ def build_font_map(html, cache_dir):
         return {}, ["FONT_DECODE_DEPENDENCY_MISSING: install fonttools pillow numpy"]
     try:
         subset_path = cached_download(font_url, os.path.join(cache_dir, key))
-        reference_path = cached_download(SOURCE_HAN_URL, os.path.join(cache_dir, "SourceHanSansSC-Regular.otf"))
+        reference_path = reference_override if reference_override and os.path.exists(reference_override) else cached_download(SOURCE_HAN_URL, os.path.join(cache_dir, "SourceHanSansSC-Regular.otf"))
         subset_tt = TTFont(subset_path)
         full_tt = TTFont(reference_path)
         subset_cmap = subset_tt["cmap"].getBestCmap()
@@ -171,6 +192,18 @@ def parse_page(url, html, directory, mode, mapping, decoder_warnings):
     return {"url": url, "captured_at": captured, "http_status": 200, "raw_html": base + ".html", "parser_source": "official_initial_state", "row_count": len(books), "rows": [x for x in rows if x], "warnings": warnings}
 
 
+def discover_rank_pages(html, base_url, limit=4):
+    """Expand the all-rank navigation into concrete category rank pages."""
+    origin = f"{urlparse(base_url).scheme}://{urlparse(base_url).netloc}"
+    paths = re.findall(r"(?:href=|['\"])(/rank/[0-9]+_[0-9]+_[0-9]+)", html)
+    ordered = []
+    for value in paths:
+        url = origin + value
+        if url not in ordered and "/rank/1_" in value:
+            ordered.append(url)
+    return ordered[:limit]
+
+
 def ssr(url):
     request = Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36"})
     with urlopen(request, timeout=45) as response:
@@ -203,6 +236,7 @@ async def main():
     ap.add_argument("--min-sample", type=int, default=10)
     ap.add_argument("--cdp")
     ap.add_argument("--persistent-dir")
+    ap.add_argument("--font-reference", help="optional local Source Han reference font")
     ap.add_argument("--require-crawl4ai", action="store_true")
     args = ap.parse_args()
     if args.require_crawl4ai and not CRAWL4AI:
@@ -210,7 +244,12 @@ async def main():
         return 2
     pages, mapping, decoder_warnings = [], None, []
     used_crawl4ai = False
-    for url in args.pages:
+    queue, visited = list(args.pages), set()
+    while queue and len(visited) < 6:
+        url = queue.pop(0)
+        if url in visited:
+            continue
+        visited.add(url)
         fallback_reason = None
         try:
             if CRAWL4AI:
@@ -229,11 +268,14 @@ async def main():
             fallback_reason = f"CRAWL4AI_RENDER_FALLBACK:{type(crawl_error).__name__}"
         try:
             if mapping is None or (not mapping and needs_decode(html)):
-                mapping, decoder_warnings = await asyncio.to_thread(build_font_map, html, os.path.join(args.evidence_dir, "_font_decoder"))
+                reference_font = args.font_reference or os.environ.get("LNW_FONT_REFERENCE_FONT")
+                mapping, decoder_warnings = await asyncio.to_thread(build_font_map, html, os.path.join(args.evidence_dir, "_font_decoder"), reference_font)
             page = parse_page(url, html, args.evidence_dir, mode, mapping, decoder_warnings)
             if fallback_reason:
                 page["warnings"].append(fallback_reason)
             pages.append(page)
+            if not page.get("rows") and url.rstrip("/").endswith("/rank/all"):
+                queue.extend(item for item in discover_rank_pages(html, url) if item not in visited and item not in queue)
         except Exception as exc:
             pages.append({"url": url, "captured_at": datetime.now(timezone.utc).isoformat(), "error": f"{type(exc).__name__}: {exc}", "rows": []})
     seen, items, diagnostics = set(), [], []

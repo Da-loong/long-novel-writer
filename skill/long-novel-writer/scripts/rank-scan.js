@@ -169,6 +169,8 @@ function crawl4aiLocal(args) {
   const childArgs = [script, '--out', out, '--evidence-dir', evidence, '--min-sample', String(settings.min_sample || 10), '--pages', ...pages];
   if (settings.cdp) childArgs.push('--cdp', String(settings.cdp));
   if (settings.persistent_dir) childArgs.push('--persistent-dir', String(settings.persistent_dir));
+  const fontReference = settings.font_reference || process.env.LNW_FONT_REFERENCE_FONT;
+  if (fontReference) childArgs.push('--font-reference', String(fontReference));
   const result = spawnSync(command, childArgs, { cwd: project, encoding: 'utf8', shell: false, timeout: 900000, maxBuffer: 20 * 1024 * 1024, windowsHide: true });
   if (result.error || result.status !== 0 || !fs.existsSync(out)) throw new CliError('CRAWL4AI_ACQUISITION_FAILED', 'Local Crawl4AI acquisition failed', { command, args: childArgs, status: result.status, stderr: String(result.stderr || result.error?.message || '').slice(-4000), stdout: String(result.stdout || '').slice(-2000) });
   const snapshot = JSON.parse(fs.readFileSync(out, 'utf8').replace(/^\uFEFF/, ''));

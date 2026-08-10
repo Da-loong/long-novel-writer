@@ -36,6 +36,7 @@ const fanqieStyleCard = require('./fanqie-style-card');
 const longformHealth = require('./longform-health');
 const qualityBrief = require('./quality-brief');
 const preproductionGate = require('./preproduction-gate');
+const rankScan = require('./rank-scan');
 const smokeGate = require('./smoke-gate');
 const longformGate = require('./longform-gate');
 const runtimeState = require('./runtime-state');
@@ -283,9 +284,8 @@ function nodePrompt(project, id) {
 function preproductionPrompt(project, id) {
   const prompts = {
     'rank-scan': [
-      'You are the ranking acquisition node. Read settings/market-sources.json.',
-      'Run scripts/rank-scan.js against every configured source or valid cache. Do not invent rows or rankings.',
-      'Write analysis/ranking-snapshot.json with the normalized snapshot, captured_at, items, and acquisition attempts. Keep raw evidence under evidence/snapshots/.',
+      'The deterministic runner has already executed scripts/rank-scan.js from the installed skill. Read settings/market-sources.json and the resulting analysis/ranking-snapshot.json only.',
+      'Do not overwrite a ranking snapshot, invent rows, or convert a category-navigation page into ranked books. Report the observed acquisition mode and evidence paths.',
     ],
     'benchmark-pool': [
       'You are the benchmark selection node. Read analysis/ranking-snapshot.json and its evidence only.',
@@ -309,6 +309,18 @@ function preproductionPrompt(project, id) {
 
 function preproduction(project, config, options, state) {
   const done = new Set(state.completed_preproduction_nodes || []);
+  // A previous agent may have created placeholder/empty evidence files and
+  // marked nodes complete. Re-open only the nodes implicated by the failed
+  // gate instead of trusting artifact existence as completion proof.
+  try { preproductionGate.validate(project); } catch (error) {
+    const codes = (error.details?.errors || []).map((item) => String(item?.code || item));
+    if (codes.some((code) => /RANKING|FONT_DECODER/.test(code))) done.delete('rank-scan');
+    if (codes.some((code) => /BENCHMARK_POOL/.test(code))) done.delete('benchmark-pool');
+    if (codes.some((code) => /BREAKDOWN/.test(code))) done.delete('breakdown');
+    if (codes.some((code) => /FEATURE_MATRIX|SOURCE_BOUNDARIES|BOOK_DNA/.test(code))) done.delete('feature-matrix');
+    state.completed_preproduction_nodes = [...done];
+    updateRun(project, { completed_preproduction_nodes: state.completed_preproduction_nodes, last_event: { type: 'preproduction_gate_reopened', errors: codes } });
+  }
   const outputs = {
     'rank-scan': [preproductionGate.RANKING],
     'benchmark-pool': [preproductionGate.POOL],
@@ -322,7 +334,14 @@ function preproduction(project, config, options, state) {
       state.attempts = { ...(state.attempts || {}), [`preproduction-${id}`]: attempt };
       updateRun(project, { attempts: state.attempts, phase: 'preproduction', current_node: id });
       try {
-        invokeAgent(project, id, preproductionPrompt(project, id), config, options);
+        // Production runs acquire ranking evidence through the deterministic
+        // local scanner. Test/injected runners retain their fixture agent so
+        // the orchestration contract stays deterministic and offline.
+        if (id === 'rank-scan' && !options.invokeAgent) {
+          rankScan.crawl4aiLocal({ adapter: 'crawl4ai', project });
+        } else {
+          invokeAgent(project, id, preproductionPrompt(project, id), config, options);
+        }
         artifactFiles(project, outputs[id]);
         done.add(id); state.completed_preproduction_nodes = [...done];
         updateRun(project, { completed_preproduction_nodes: state.completed_preproduction_nodes, last_event: { type: 'preproduction_node_completed', node: id } });
