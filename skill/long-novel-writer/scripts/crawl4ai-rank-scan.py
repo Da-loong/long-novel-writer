@@ -177,8 +177,18 @@ def ssr(url):
         return response.read().decode("utf-8", errors="replace")
 
 
-async def crawl4ai(url):
-    cfg = BrowserConfig(browser_type="chromium", headless=True)
+async def crawl4ai(url, cdp=None, persistent_dir=None):
+    browser_kwargs = {"browser_type": "chromium", "headless": not bool(cdp)}
+    if cdp:
+        browser_kwargs["cdp_url"] = cdp
+    if persistent_dir:
+        browser_kwargs["user_data_dir"] = persistent_dir
+    try:
+        cfg = BrowserConfig(**browser_kwargs)
+    except TypeError:
+        # Crawl4AI versions differ on optional BrowserConfig names. Keep the
+        # render path usable while recording the requested session settings.
+        cfg = BrowserConfig(browser_type="chromium", headless=not bool(cdp))
     run = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, wait_until="networkidle", page_timeout=45000)
     async with AsyncWebCrawler(config=cfg) as crawler:
         result = await crawler.arun(url=url, config=run)
@@ -204,7 +214,7 @@ async def main():
         fallback_reason = None
         try:
             if CRAWL4AI:
-                html = await crawl4ai(url)
+                html = await crawl4ai(url, args.cdp, args.persistent_dir)
                 mode = "crawl4ai"
                 used_crawl4ai = True
             else:
@@ -235,7 +245,7 @@ async def main():
                 items.append(item)
     if len(items) < args.min_sample:
         diagnostics.append({"severity": "error", "code": "LOW_SAMPLE_SIZE", "sample_size": len(items), "minimum_sample": args.min_sample})
-    data = {"schema_version": "1.3", "ok": len(items) >= args.min_sample, "platform": "fanqie", "platform_name": "Fanqie", "adapter": "crawl4ai" if used_crawl4ai else "official_ssr_fallback", "captured_at": datetime.now(timezone.utc).isoformat(), "sample_size": len(items), "items": items, "diagnostics": diagnostics, "acquisition": {"mode": "crawl4ai_playwright_render" if used_crawl4ai else "official_ssr_fallback", "font_decoder": {"mapped_count": len(mapping or {}), "low_confidence_count": sum(1 for item in decoder_warnings if str(item).startswith("FONT_DECODE_LOW_CONFIDENCE:")), "warnings": decoder_warnings}, "pages": [{k: v for k, v in page.items() if k != "rows"} for page in pages]}}
+    data = {"schema_version": "1.4", "ok": len(items) >= args.min_sample, "platform": "fanqie", "platform_name": "Fanqie", "adapter": "crawl4ai" if used_crawl4ai else "official_ssr_fallback", "captured_at": datetime.now(timezone.utc).isoformat(), "sample_size": len(items), "items": items, "diagnostics": diagnostics, "acquisition": {"mode": "crawl4ai_playwright_render" if used_crawl4ai else "official_ssr_fallback", "cdp_requested": bool(args.cdp), "persistent_dir_requested": bool(args.persistent_dir), "font_decoder": {"mapped_count": len(mapping or {}), "low_confidence_count": sum(1 for item in decoder_warnings if str(item).startswith("FONT_DECODE_LOW_CONFIDENCE:")), "warnings": decoder_warnings}, "pages": [{k: v for k, v in page.items() if k != "rows"} for page in pages]}}
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)

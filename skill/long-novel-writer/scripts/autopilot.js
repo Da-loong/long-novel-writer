@@ -125,10 +125,12 @@ function pilotPass(projectInput, options = {}) {
   const panelModels = [...new Set(reports.map((report) => String(report?.model_id || '').trim()).filter(Boolean))];
   const panelRoles = [...new Set(reports.map((report) => String(report?.role_id || '').trim()).filter(Boolean))];
   const reviewMode = evidence.review_mode === 'single_model_multi_role' ? 'single_model_multi_role' : 'cross_model';
+  const independenceClass = evidence.independence_class || (reviewMode === 'cross_model' ? 'cross_model_independent' : 'role_separated_not_independent');
   const checks = {
     reviewed_through: Number(evidence.reviewed_through || 0) >= 3,
     independent_readers: reports.length >= 3 && Number(evidence.independent_readers || reports.length) >= 3,
     review_mode: ['cross_model', 'single_model_multi_role'].includes(reviewMode),
+    independence_class: reviewMode === 'cross_model' ? independenceClass === 'cross_model_independent' : independenceClass === 'role_separated_not_independent',
     reviewer_diversity: reviewMode === 'cross_model'
       ? panelModels.length >= 2 && Number(evidence.distinct_models || panelModels.length) >= 2
       : panelModels.length === 1 && Number(evidence.distinct_models || panelModels.length) === 1 && panelRoles.length >= 3 && Number(evidence.distinct_roles || panelRoles.length) >= 3,
@@ -142,7 +144,7 @@ function pilotPass(projectInput, options = {}) {
   const failures = Object.entries(checks).filter(([, passed]) => !passed).map(([key]) => key);
   if (failures.length) throw new CliError('AUTOPILOT_PILOT_FAILED', '自动盲评未达到放行阈值', { evidence: evidencePath, failures, checks });
   const now = new Date().toISOString();
-  const verdict = { schema_version: '1.2', status: 'approved', auto_confirmed: true, reviewed_through: Number(evidence.reviewed_through), reviewer: reviewMode === 'cross_model' ? 'autopilot-cross-model-panel' : 'autopilot-single-model-role-panel', review_mode: reviewMode, panel_models: panelModels, panel_roles: panelRoles, reason: evidence.reason || (reviewMode === 'cross_model' ? 'Cross-model blind review reached the automatic release threshold.' : 'Single-model role-separated blind review reached the automatic release threshold.'), score: Number(evidence.reader_score), platform_fit: Number(evidence.platform_fit), evidence: path.relative(project, evidencePath).replace(/\\/g, '/'), audit, checks, updated_at: now };
+  const verdict = { schema_version: '1.3', status: 'approved', auto_confirmed: true, reviewed_through: Number(evidence.reviewed_through), reviewer: reviewMode === 'cross_model' ? 'autopilot-cross-model-panel' : 'autopilot-single-model-role-panel', review_mode: reviewMode, independence_class: independenceClass, panel_models: panelModels, panel_roles: panelRoles, reason: evidence.reason || (reviewMode === 'cross_model' ? 'Cross-model blind review reached the automatic release threshold.' : 'Single-model role-separated panel reached the automatic release threshold.'), score: Number(evidence.reader_score), platform_fit: Number(evidence.platform_fit), evidence: path.relative(project, evidencePath).replace(/\\/g, '/'), audit, checks, updated_at: now };
   atomicWrite(path.join(project, PILOT_FILE), `${JSON.stringify(verdict, null, 2)}\n`);
   const next = { ...autopilot, phase: 'production', status: 'running', updated_at: now, revision_round: 0 };
   writeAutopilot(project, next);

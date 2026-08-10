@@ -37,14 +37,26 @@ project config.
    only when its measurable quality or reader debt improves; a plateau restores
    the prior draft. State is advanced only around the post gate; a failed post
    gate restores the previous project state and records an aborted transaction.
-4. Before chapter 4 in a 300k+ project, three independent cold-reader sessions
-   produce raw reports. The runner synthesizes evidence with verifiable quotes
-   and invokes the existing pilot gate. A weak panel pauses production and
-   stores the reports; a bounded repair pass may rewrite chapters 1-3 before a
-   second panel attempt.
+4. Before chapter 4 in a 300k+ project, three or more role-separated cold-reader
+   sessions produce raw reports. Two or more configured models are labeled
+   `cross_model_independent`; one model is labeled
+   `role_separated_not_independent` and still requires distinct role protocols,
+   deterministic chapter receipts, and the same thresholds. A weak panel pauses
+   production and stores the reports; a bounded repair pass may rewrite chapters
+   1-3 before a second panel attempt.
 5. Every `review_interval` chapters, a cross-chapter review artifact is
-   required. Reaching `target_words` writes `state/handoff-current.md` and
-   changes both runtimes to `complete`/`completed`.
+   required. At chapters 10/30/100/400, `longform-gate.js` additionally checks
+   quality history, unresolved repair debt, stall/fatigue/upgrade-decay health,
+   and completion recovery before the next chapter. Reaching `target_words`
+   writes `state/handoff-current.md` and changes both runtimes to
+   `complete`/`completed`.
+
+Before a new book starts, `deep-breakdown-gate.js` requires a source-backed
+10-20-book benchmark pool, a 1500+ character seven-dimension breakdown, and
+traceable B## IDs before `preproduction-gate.js` compiles Book DNA. Run
+`production-readiness.js` to see the single current evidence status. Published
+queue items also require a hash-bound platform metrics export before they are
+considered fully unattended-ready.
 
 ## Post-review recovery receipt
 

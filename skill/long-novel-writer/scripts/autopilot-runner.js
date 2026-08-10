@@ -37,6 +37,7 @@ const longformHealth = require('./longform-health');
 const qualityBrief = require('./quality-brief');
 const preproductionGate = require('./preproduction-gate');
 const smokeGate = require('./smoke-gate');
+const longformGate = require('./longform-gate');
 const runtimeState = require('./runtime-state');
 
 const RUN_FILE = 'state/autopilot-run.json';
@@ -288,18 +289,18 @@ function preproductionPrompt(project, id) {
     ],
     'benchmark-pool': [
       'You are the benchmark selection node. Read analysis/ranking-snapshot.json and its evidence only.',
-      'Select 10-20 same-track books by observable market evidence. Write evidence/derivations/benchmark-pool.md.',
-      'Every selected row must have status selected and cite source IDs; do not use prose, names, plot sequences, or distinctive settings as reusable material.',
+      'Select exactly 10-20 same-track books by observable market evidence. Assign stable IDs B01-B20, keep one active row per selected book, and cite source IDs plus the captured ranking snapshot.',
+      'Every selected row must have status selected and cite source IDs; do not use prose, names, plot sequences, or distinctive settings as reusable material. Fewer than 10 or more than 20 active rows fails the gate.',
     ],
     breakdown: [
       'You are the multi-book deconstruction node. Read the ranking snapshot, benchmark pool, permitted public evidence, and source boundaries.',
-      'Write analysis/breakdown.md with distinct sections for market promise, framework, plot progression, character engine, chapter rhythm, prose behavior, and retention mechanics.',
-      'Describe only abstract mechanisms with provenance. Never reproduce source text, names, scenes, plot chains, or settings.',
+      'Write analysis/breakdown.md with at least 1500 non-whitespace characters and distinct sections for market promise, framework, plot progression, character engine, chapter rhythm, prose behavior, and retention mechanics. Cite every selected B## at least once and record what was observed, how sources agree/disagree, and what remains uncertain.',
+      'Describe only abstract mechanisms with provenance. Never reproduce source text, names, scenes, plot chains, or settings. A title list or synopsis is not a deconstruction and will fail the deep-breakdown gate.',
     ],
     'feature-matrix': [
       'You are the Book DNA matrix node. Read analysis/breakdown.md and the benchmark pool.',
       'Write evidence/derivations/benchmark-feature-matrix.md and evidence/derivations/source-boundaries.md.',
-      'Create at least 6 adopted abstract mechanisms across at least 3 dimensions. Every adopted mechanism needs evidence and at least two benchmark IDs. Never copy source expression or plot material.',
+      'Create at least 6 adopted abstract mechanisms across at least 3 dimensions. Every adopted mechanism needs evidence and at least two benchmark IDs; keep the source-boundaries file substantive (300+ characters) and explicit about prohibited reuse. Never copy source expression or plot material.',
     ],
   };
   if (!prompts[id]) throw new CliError('PREPRODUCTION_NODE_UNKNOWN', `Unknown preproduction node: ${id}`, { node: id });
@@ -942,14 +943,17 @@ function runPanel(project, config, options, run) {
   const comprehension = reports.filter((item) => Number(item.comprehension_0_to_10) >= 7).length / reports.length;
   const continuation = reports.filter((item) => item.would_continue === true).length / reports.length;
   const vetoes = reports.filter((item) => item.veto === true);
+  const distinctModels = [...new Set(reports.map((item) => item.model_id))].length;
+  const distinctRoles = [...new Set(reports.map((item) => item.role_id))].length;
+  const independenceClass = reviewMode === 'cross_model' ? 'cross_model_independent' : 'role_separated_not_independent';
   const evidence = {
-    schema_version: '1.2', reviewed_through: 3, review_mode: reviewMode, independent_readers: reports.length, distinct_models: [...new Set(reports.map((item) => item.model_id))].length, distinct_roles: [...new Set(reports.map((item) => item.role_id))].length,
+    schema_version: '1.3', reviewed_through: 3, review_mode: reviewMode, independence_class: independenceClass, independent_readers: reports.length, distinct_models: distinctModels, distinct_roles: distinctRoles,
     reader_score: Number((average('continuation_0_to_10') * 0.4 + average('platform_fit_0_to_10') * 0.25 + average('comprehension_0_to_10') * 0.2 + average('prose_naturalness_0_to_10') * 0.15).toFixed(2)),
     platform_fit: Number(average('platform_fit_0_to_10').toFixed(2)), comprehension_pass_rate: Number(comprehension.toFixed(2)), continuation_rate: Number(continuation.toFixed(2)),
     critical_failures: vetoes.length, vetoes: vetoes.map((item) => ({ reader_id: item.reader_id, role_id: item.role_id, model_id: item.model_id, reason: String(item.veto_reason || item.reason || '').slice(0, 1000) })), target_anchors: anchors,
     reader_reports: reports.map((item) => ({ reader_id: item.reader_id || '', role_id: item.role_id, model_id: item.model_id, transcript: item.transcript, summary: String(item.reason || item.strongest_hook || '').slice(0, 1000), confusions: Array.isArray(item.confusions) ? item.confusions : [], continue_next: item.would_continue, veto: item.veto === true, veto_reason: String(item.veto_reason || '').slice(0, 1000) })),
     findings: [], raw_reports: reports,
-    reason: reviewMode === 'cross_model' ? 'Cross-model role-based cold-reader panel completed by the autopilot.' : 'Single-model, role-separated cold-reader panel completed by the autopilot.', updated_at: new Date().toISOString(),
+    reason: reviewMode === 'cross_model' ? 'Cross-model role-based cold-reader panel completed by the autopilot.' : 'Single-model role-separated panel completed by the autopilot; this is role separation, not independent-model evidence.', updated_at: new Date().toISOString(),
   };
   const evidenceFile = 'analysis/autopilot-pilot.json';
   writeJson(path.join(project, evidenceFile), evidence);
@@ -1112,6 +1116,13 @@ function runProject(projectInput, options = {}) {
       run = runState(project);
       produced++;
       if (result.chapter >= 4 && result.chapter % config.review_interval === 0) review(project, result.chapter, config, options, run);
+      if (longformGate.CHECKPOINTS.includes(Number(result.chapter))) {
+        const checkpoint = longformGate.validate(project);
+        if (!checkpoint.ok) {
+          stop(project, { code: 'LONGFORM_GATE_PENDING', reason: JSON.stringify(checkpoint.errors) });
+          return { ok: false, command: 'run', status: 'paused', code: 'LONGFORM_GATE_PENDING', reason: 'Longform checkpoint has not passed', checkpoint, produced };
+        }
+      }
     } catch (error) {
       event(project, { type: 'chapter_failed', chapter: nextChapter, code: error.code || 'UNEXPECTED_ERROR', reason: error.message });
       stop(project, { code: error.code || 'CHAPTER_FAILED', reason: error.message });

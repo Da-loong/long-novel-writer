@@ -62,12 +62,12 @@ function fakeAgent(request) {
     const rows = Array.from({ length: 12 }, (_, index) => `| B${String(index + 1).padStart(2, '0')} | Book ${index + 1} | urban | visible rank | synopsis | ranking-snapshot | selected |`).join('\n');
     write('evidence/derivations/benchmark-pool.md', `# Benchmark pool\n\n| ID | Work | Track | Selection | Scope | Source | Status |\n|---|---|---|---|---|---|---|\n${rows}\n`);
   } else if (request.task === 'breakdown') {
-    write('analysis/breakdown.md', `# Breakdown\n\n${'Observable market promise, framework, plot, character, chapter, prose, and retention mechanics are abstracted with evidence boundaries. '.repeat(8)}\n`);
+    write('analysis/breakdown.md', `# Breakdown\n\n${'Observable market promise, framework, plot, character, chapter, prose, and retention mechanics are abstracted with evidence boundaries. '.repeat(12)}\nSources compared: ${Array.from({ length: 12 }, (_, index) => `B${String(index + 1).padStart(2, '0')}`).join(', ')}.\n`);
   } else if (request.task === 'feature-matrix') {
     const dimensions = ['market', 'framework', 'plot', 'character', 'chapter', 'prose'];
     const rows = dimensions.map((dimension, index) => `| DNA-${index + 1} | ${dimension} | Abstract ${dimension} mechanism | multi-source evidence | B01,B02 | all | adopted |`).join('\n');
     write('evidence/derivations/benchmark-feature-matrix.md', `# Matrix\n\n| ID | Dimension | Mechanism | Evidence | Sources | Scope | Status |\n|---|---|---|---|---|---|---|\n${rows}\n`);
-    write('evidence/derivations/source-boundaries.md', '# Boundaries\n\nNo source names, text, scenes, plot sequences, or settings enter the new manuscript.\n');
+    write('evidence/derivations/source-boundaries.md', '# Boundaries\n\nNo source names, text, scenes, plot sequences, or settings enter the new manuscript. Only multi-source abstract mechanisms may enter Book DNA. Source wording, names, distinctive scenes, settings, plot chains, and character configurations remain excluded from the new work. Every adopted mechanism must be independently designed and traced to its evidence rows.\n');
   } else if (request.task === 'build') {
     write('settings/story-bible.md', '# Story bible\n\n## Premise\nA street vendor sees the cost of every promise.\n');
     write('settings/reader-contract.md', '# Reader contract\n\n## Promise\nFast choices, visible costs, and a cliffhanger every chapter.\n');
