@@ -160,7 +160,7 @@ function crawl4aiLocal(args) {
   const project = path.resolve(String(args.project || ''));
   if (!args.project || !fs.existsSync(path.join(project, 'settings', 'market-sources.json'))) throw new CliError('CRAWL4AI_PROJECT_REQUIRED', 'Crawl4AI adapter requires --project with settings/market-sources.json', { project });
   const settings = JSON.parse(fs.readFileSync(path.join(project, 'settings', 'market-sources.json'), 'utf8').replace(/^\uFEFF/, ''));
-  const pages = Array.isArray(settings.pages) ? settings.pages.filter(Boolean) : [];
+  const pages = [...(Array.isArray(settings.pages) ? settings.pages : []), ...(Array.isArray(settings.urls) ? settings.urls : [])].filter(Boolean).filter((value, index, values) => values.indexOf(value) === index);
   if (!pages.length) throw new CliError('CRAWL4AI_PAGES_REQUIRED', 'market-sources.json needs pages for Crawl4AI acquisition', { file: 'settings/market-sources.json' });
   const script = path.join(__dirname, 'crawl4ai-rank-scan.py');
   const out = path.resolve(project, args.out || 'analysis/ranking-snapshot.json');
