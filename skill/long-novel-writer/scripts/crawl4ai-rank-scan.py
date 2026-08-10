@@ -235,7 +235,7 @@ async def main():
                 items.append(item)
     if len(items) < args.min_sample:
         diagnostics.append({"severity": "error", "code": "LOW_SAMPLE_SIZE", "sample_size": len(items), "minimum_sample": args.min_sample})
-    data = {"schema_version": "1.3", "ok": len(items) >= args.min_sample, "platform": "fanqie", "platform_name": "Fanqie", "adapter": "crawl4ai" if used_crawl4ai else "official_ssr_fallback", "captured_at": datetime.now(timezone.utc).isoformat(), "sample_size": len(items), "items": items, "diagnostics": diagnostics, "acquisition": {"mode": "crawl4ai_playwright_render" if used_crawl4ai else "official_ssr_fallback", "font_decoder": {"mapped_count": len(mapping or {}), "warnings": decoder_warnings}, "pages": [{k: v for k, v in page.items() if k != "rows"} for page in pages]}}
+    data = {"schema_version": "1.3", "ok": len(items) >= args.min_sample, "platform": "fanqie", "platform_name": "Fanqie", "adapter": "crawl4ai" if used_crawl4ai else "official_ssr_fallback", "captured_at": datetime.now(timezone.utc).isoformat(), "sample_size": len(items), "items": items, "diagnostics": diagnostics, "acquisition": {"mode": "crawl4ai_playwright_render" if used_crawl4ai else "official_ssr_fallback", "font_decoder": {"mapped_count": len(mapping or {}), "low_confidence_count": sum(1 for item in decoder_warnings if str(item).startswith("FONT_DECODE_LOW_CONFIDENCE:")), "warnings": decoder_warnings}, "pages": [{k: v for k, v in page.items() if k != "rows"} for page in pages]}}
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)

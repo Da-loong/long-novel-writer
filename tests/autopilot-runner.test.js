@@ -87,7 +87,7 @@ function fakeAgent(request) {
     write('outline/foreshadowing-ledger.md', '# Foreshadowing\n\n| ID | First | Content | Strength | Payoff | Status |\n|---|---:|---|---:|---:|---|\n| F1 | 1 | the receipt | 1 | 3 | open |\n');
   } else if (request.task === 'mvp') {
     const chapter = Number(JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'chapter-transaction.json'), 'utf8')).chapter);
-    const body = Array.from({ length: 20 }, (_, index) => `段落${index + 1}的雨声砸过铁棚，林越把第${chapter}张欠条拍在柜台上。回应${index + 1}传来时，巷口的灯映出他手背上的水。\n“今天给答案。”对方${index + 1}说。\n选择${index + 1}落下，林越抓起旧秤走向亮着灯的巷口，围观的人让开一条窄路；这一步把下一次选择的代价摆到了所有人面前。`).join('\n\n');
+    const body = Array.from({ length: 45 }, (_, index) => `段落${index + 1}的雨声砸过铁棚，林越把第${chapter}张欠条拍在柜台上。回应${index + 1}传来时，巷口的灯映出他手背上的水。\n“今天给答案。”对方${index + 1}说。\n选择${index + 1}落下，林越抓起旧秤走向亮着灯的巷口，围观的人让开一条窄路；这一步把下一次选择的代价摆到了所有人面前。`).join('\n\n');
     write(`manuscript/ch-${String(chapter).padStart(4, '0')}-雨夜的欠条.md`, `# 雨夜的欠条\n\n${body}\n`);
   } else if (request.task === 'mvp-reader-review') {
     const chapter = Number(JSON.parse(fs.readFileSync(path.join(request.project, 'state', 'chapter-transaction.json'), 'utf8')).chapter);

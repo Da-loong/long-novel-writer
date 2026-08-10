@@ -453,3 +453,12 @@ concealment, loss, damage, and access facts. Stale or expected-use-due resources
 become warnings, never invented plot events. Read
 references/operations/resource-ledger-loop.md and update with
 scripts/resource-ledger.js update <PROJECT> --chapter <N>.
+
+
+## Production hard gates (updated)
+
+- New projects target 2400-3200 Chinese characters per chapter; below 2000 blocks submission. Existing projects with a legacy 1200 setting are raised to at least 2000 by the unattended runner.
+- Before commit every chapter must complete: prose checks -> chapter cold review -> `chapter-facts` -> `foreshadowing-reconcile` -> fact projections -> `quality-brief`. Missing evidence keeps the transaction open and does not advance `project-state.updated_through`.
+- Golden-three review distinguishes `single_model_multi_role` from `human_confirmed`; model-panel evidence never populates the human-confirmation field.
+- Rank snapshots record custom-font decoding confidence; low-confidence glyphs or unreadable PUA characters block `preproduction-gate` Book DNA compilation until acquisition evidence is repaired.
+- Run `node scripts/cleanup-temp.js <PROJECT>` after each cycle. It only removes explicitly named temporary files under `analysis/`, `evidence/`, and `state/`.

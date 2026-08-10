@@ -8,7 +8,7 @@ const { validate } = require('./validate-project');
 const { analyze: analyzeFormat } = require('./format-gate');
 
 function argsOf(argv) {
-  const args = { stage: 'pre', 'min-chars': '1200' };
+  const args = { stage: 'pre', 'min-chars': '2000' };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i].startsWith('--')) args[argv[i].slice(2)] = argv[++i];
     else if (!args.project) args.project = argv[i];
@@ -81,7 +81,7 @@ function gate(projectInput, options = {}) {
       const manuscriptFile = path.join(manuscript, chapterName);
       const text = fs.readFileSync(manuscriptFile, 'utf8');
       const counts = countText(text);
-      const minimum = Number.parseInt(options['min-chars'] || '1200', 10);
+      const minimum = Number.parseInt(options['min-chars'] || '2000', 10);
       const maximum = options['max-chars'] === undefined ? null : Number.parseInt(options['max-chars'], 10);
       if (!Number.isFinite(minimum) || minimum <= 0) throw new CliError('INVALID_MIN_CHARS', 'min-chars 必须为正整数', { value: options['min-chars'] });
       if (maximum !== null && (!Number.isFinite(maximum) || maximum <= 0)) throw new CliError('INVALID_MAX_CHARS', 'max-chars 必须为正整数', { value: options['max-chars'] });
@@ -102,7 +102,7 @@ function gate(projectInput, options = {}) {
 
 function run(argv = process.argv.slice(2)) {
   const args = argsOf(argv);
-  if (!args.project) throw new CliError('USAGE', '用法: node chapter-gate.js <项目目录> --stage pre|post --chapter N [--min-chars 1200] [--max-chars 3500]');
+  if (!args.project) throw new CliError('USAGE', '用法: node chapter-gate.js <项目目录> --stage pre|post --chapter N [--min-chars 2000] [--max-chars 3500]');
   const report = gate(args.project, args);
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   if (!report.ok) process.exitCode = 3;

@@ -50,7 +50,7 @@ const DEFAULTS = {
   agent_args: ['--dangerously-skip-permissions', '--no-session-persistence'],
   timeout_ms: Number(process.env.LNW_AGENT_TIMEOUT_MS || 900000),
   max_attempts: 3,
-  chapter_min_chars: 1200,
+  chapter_min_chars: 2000,
   chapter_max_chars: null,
   panel_readers: 5,
   panel_models: [],
@@ -127,7 +127,7 @@ function configOf(project, options = {}) {
     agent_args: Array.isArray(options['agent-args'] ?? options.agent_args ?? stored.agent_args) ? (options['agent-args'] ?? options.agent_args ?? stored.agent_args) : DEFAULTS.agent_args,
     timeout_ms: Math.max(1000, number('timeout-ms', number('timeout_ms', DEFAULTS.timeout_ms))),
     max_attempts: Math.max(1, Math.floor(number('max-attempts', number('max_attempts', DEFAULTS.max_attempts)))),
-    chapter_min_chars: Math.max(1, Math.floor(number('min-chars', number('chapter_min_chars', DEFAULTS.chapter_min_chars)))),
+    chapter_min_chars: Math.max(2000, Math.floor(number('min-chars', number('chapter_min_chars', DEFAULTS.chapter_min_chars)))),
     chapter_max_chars: options['max-chars'] ?? stored.chapter_max_chars ?? DEFAULTS.chapter_max_chars,
     panel_readers: Math.max(3, Math.floor(number('panel-readers', number('panel_readers', DEFAULTS.panel_readers)))),
     panel_models: (() => {

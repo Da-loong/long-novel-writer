@@ -95,7 +95,7 @@ function stateOf(project) {
 }
 
 function numericRange(options) {
-  const minimum = Number.parseInt(options['min-chars'] || '1200', 10);
+  const minimum = Number.parseInt(options['min-chars'] || '2000', 10);
   const maximum = options['max-chars'] === undefined ? null : Number.parseInt(options['max-chars'], 10);
   if (!Number.isFinite(minimum) || minimum <= 0) throw new CliError('INVALID_MIN_CHARS', 'min-chars 必须为正整数', { value: options['min-chars'] });
   if (maximum !== null && (!Number.isFinite(maximum) || maximum <= 0)) throw new CliError('INVALID_MAX_CHARS', 'max-chars 必须为正整数', { value: options['max-chars'] });
@@ -264,7 +264,7 @@ function status(projectInput) {
 
 function run(argv = process.argv.slice(2)) {
   const args = argsOf(argv);
-  if (!args.command || !args.project || !['begin', 'finish', 'abort', 'status'].includes(args.command)) throw new CliError('USAGE', '用法: node chapter-transaction.js begin|finish|abort|status <项目目录> [--chapter N] [--query 关键词] [--min-chars 1200] [--max-chars 3500] [--approve-canon --reason 说明]');
+  if (!args.command || !args.project || !['begin', 'finish', 'abort', 'status'].includes(args.command)) throw new CliError('USAGE', '用法: node chapter-transaction.js begin|finish|abort|status <项目目录> [--chapter N] [--query 关键词] [--min-chars 2000] [--max-chars 3500] [--approve-canon --reason 说明]');
   const report = args.command === 'begin' ? begin(args.project, args) : args.command === 'finish' ? finish(args.project, args) : args.command === 'abort' ? abort(args.project, args) : status(args.project);
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   if (!report.ok) process.exitCode = 3;
