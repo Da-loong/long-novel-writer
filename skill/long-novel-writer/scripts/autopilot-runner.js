@@ -346,7 +346,7 @@ function preproduction(project, config, options, state) {
       done.delete('benchmark-pool');
       archivePreproductionArtifact(project, preproductionGate.POOL, codes.join(','));
     }
-    if (codes.some((code) => /BREAKDOWN|DEEP_BREAKDOWN|PROVENANCE_THIN/.test(code))) {
+    if (codes.some((code) => /DEEP_BREAKDOWN_(?:TOO_THIN|DIMENSION_MISSING|PROVENANCE_THIN)/.test(code))) {
       done.delete('breakdown');
       archivePreproductionArtifact(project, preproductionGate.BREAKDOWN, codes.join(','));
     }
