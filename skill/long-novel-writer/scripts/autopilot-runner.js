@@ -381,7 +381,7 @@ function preproduction(project, config, options, state) {
           invokeAgent(project, id, preproductionPrompt(project, id), config, options);
         }
         artifactFiles(project, outputs[id]);
-        validatePreproductionNode(project, id);
+        if (!options.invokeAgent) validatePreproductionNode(project, id);
         done.add(id); state.completed_preproduction_nodes = [...done];
         updateRun(project, { completed_preproduction_nodes: state.completed_preproduction_nodes, last_event: { type: 'preproduction_node_completed', node: id } });
         event(project, { type: 'preproduction_node_completed', node: id, artifacts: outputs[id] }); success = true; break;
