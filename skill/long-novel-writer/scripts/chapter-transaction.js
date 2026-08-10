@@ -116,7 +116,7 @@ function requirePilotApproval(project, state, chapter) {
     });
   }
   const verdict = readJson(path.join(project, PILOT_FILE), { status: 'pending', reviewed_through: 0 });
-  if (verdict.status !== 'approved' || Number(verdict.reviewed_through || 0) < 3 || verdict.human_confirmed !== true) {
+  if (verdict.status !== 'approved' || Number(verdict.reviewed_through || 0) < 3 || verdict.human_confirmed !== true || verdict.human_confirmation_method !== 'explicit_cli_flag') {
     throw new CliError('PILOT_NOT_APPROVED', '黄金三章尚未通过真人冷读，已阻止规模化续写', {
       pilot: path.join(project, PILOT_FILE), status: verdict.status || 'pending', reviewed_through: Number(verdict.reviewed_through || 0),
       next: `node pilot-review.js approve "${project}" --reviewed-through 3 --reviewer <真人> --reason <结论> --human-confirmed`,

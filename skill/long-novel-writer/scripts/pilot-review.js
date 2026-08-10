@@ -80,7 +80,7 @@ function decide(projectInput, command, options = {}) {
   const now = new Date().toISOString();
   const verdict = {
     schema_version: '1.0', status: command === 'approve' ? 'approved' : 'rejected', reviewed_through: reviewedThrough,
-    reviewer, reason, human_confirmed: command === 'approve', updated_at: now,
+    reviewer, reason, human_confirmed: command === 'approve', human_confirmation_method: command === 'approve' ? 'explicit_cli_flag' : null, updated_at: now,
   };
   atomicWrite(path.join(project, PILOT_FILE), `${JSON.stringify(verdict, null, 2)}\n`);
   appendLedger(project, {
