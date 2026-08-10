@@ -294,17 +294,30 @@ function preproductionPrompt(project, id) {
     ],
     breakdown: [
       'You are the multi-book deconstruction node. Read the ranking snapshot, benchmark pool, permitted public evidence, and source boundaries.',
+      'This is a fresh rebuild. Overwrite any stale or blocked breakdown report; do not preserve an earlier blocked_no_evidence narrative after the ranking snapshot has been refreshed.',
       'Write analysis/breakdown.md with at least 1500 non-whitespace characters and distinct sections for market promise, framework, plot progression, character engine, chapter rhythm, prose behavior, and retention mechanics. Cite every selected B## at least once and record what was observed, how sources agree/disagree, and what remains uncertain.',
       'Describe only abstract mechanisms with provenance. Never reproduce source text, names, scenes, plot chains, or settings. A title list or synopsis is not a deconstruction and will fail the deep-breakdown gate.',
     ],
     'feature-matrix': [
       'You are the Book DNA matrix node. Read analysis/breakdown.md and the benchmark pool.',
+      'This is a fresh rebuild. Overwrite any stale or blocked matrix/boundary files. The current breakdown must cite every active B## in the pool; if it does not, repair the breakdown before writing the matrix.',
       'Write evidence/derivations/benchmark-feature-matrix.md and evidence/derivations/source-boundaries.md.',
       'Create at least 6 adopted abstract mechanisms across at least 3 dimensions. Every adopted mechanism needs evidence and at least two benchmark IDs; keep the source-boundaries file substantive (300+ characters) and explicit about prohibited reuse. Never copy source expression or plot material.',
     ],
   };
   if (!prompts[id]) throw new CliError('PREPRODUCTION_NODE_UNKNOWN', `Unknown preproduction node: ${id}`, { node: id });
   return [`Project root: ${project}`, ...prompts[id], 'Finish by saving only the requested project artifacts and return a short machine-readable summary.'].join('\n');
+}
+
+function archivePreproductionArtifact(project, relative, reason) {
+  const source = path.join(project, relative);
+  if (!fs.existsSync(source)) return null;
+  const stamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 17);
+  const target = path.join(project, 'state', 'preproduction-stale', stamp, relative);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.renameSync(source, target);
+  event(project, { type: 'preproduction_artifact_archived', artifact: relative, archived_to: relativePath(project, target), reason });
+  return relativePath(project, target);
 }
 
 function preproduction(project, config, options, state) {
@@ -314,10 +327,24 @@ function preproduction(project, config, options, state) {
   // gate instead of trusting artifact existence as completion proof.
   try { preproductionGate.validate(project); } catch (error) {
     const codes = (error.details?.errors || []).map((item) => String(item?.code || item));
-    if (codes.some((code) => /RANKING|FONT_DECODER/.test(code))) done.delete('rank-scan');
-    if (codes.some((code) => /BENCHMARK_POOL/.test(code))) done.delete('benchmark-pool');
-    if (codes.some((code) => /BREAKDOWN/.test(code))) done.delete('breakdown');
-    if (codes.some((code) => /FEATURE_MATRIX|SOURCE_BOUNDARIES|BOOK_DNA/.test(code))) done.delete('feature-matrix');
+    if (codes.some((code) => /RANKING|FONT_DECODER/.test(code))) {
+      done.delete('rank-scan');
+      archivePreproductionArtifact(project, preproductionGate.RANKING, codes.join(','));
+    }
+    if (codes.some((code) => /BENCHMARK_POOL/.test(code))) {
+      done.delete('benchmark-pool');
+      archivePreproductionArtifact(project, preproductionGate.POOL, codes.join(','));
+    }
+    if (codes.some((code) => /BREAKDOWN|DEEP_BREAKDOWN|PROVENANCE_THIN/.test(code))) {
+      done.delete('breakdown');
+      archivePreproductionArtifact(project, preproductionGate.BREAKDOWN, codes.join(','));
+    }
+    if (codes.some((code) => /FEATURE_MATRIX|SOURCE_BOUNDARIES|BOOK_DNA/.test(code))) {
+      done.delete('feature-matrix');
+      archivePreproductionArtifact(project, preproductionGate.MATRIX, codes.join(','));
+      archivePreproductionArtifact(project, preproductionGate.BOUNDARIES, codes.join(','));
+      archivePreproductionArtifact(project, 'state/book-dna.json', codes.join(','));
+    }
     state.completed_preproduction_nodes = [...done];
     updateRun(project, { completed_preproduction_nodes: state.completed_preproduction_nodes, last_event: { type: 'preproduction_gate_reopened', errors: codes } });
   }
