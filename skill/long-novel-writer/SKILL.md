@@ -462,3 +462,5 @@ scripts/resource-ledger.js update <PROJECT> --chapter <N>.
 - Golden-three review distinguishes `single_model_multi_role` from `human_confirmed`; model-panel evidence never populates the human-confirmation field.
 - Rank snapshots record custom-font decoding confidence; low-confidence glyphs or unreadable PUA characters block `preproduction-gate` Book DNA compilation until acquisition evidence is repaired.
 - Run `node scripts/cleanup-temp.js <PROJECT>` after each cycle. It only removes explicitly named temporary files under `analysis/`, `evidence/`, and `state/`.
+
+- Before chapter 4, run `node scripts/smoke-gate.js <PROJECT>`. It requires three unique manuscripts at the hard floor, hash-matched reader reports, validated chapter-facts reports plus ledgers, and a provenance-bound pilot verdict. A passed panel score alone does not unlock scale production.
