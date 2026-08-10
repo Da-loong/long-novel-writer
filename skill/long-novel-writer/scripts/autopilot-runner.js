@@ -36,6 +36,7 @@ const fanqieStyleCard = require('./fanqie-style-card');
 const longformHealth = require('./longform-health');
 const qualityBrief = require('./quality-brief');
 const preproductionGate = require('./preproduction-gate');
+const smokeGate = require('./smoke-gate');
 const runtimeState = require('./runtime-state');
 
 const RUN_FILE = 'state/autopilot-run.json';
@@ -1060,11 +1061,18 @@ function runProject(projectInput, options = {}) {
   while (Number(stateOf(project).word_count || 0) < targetWords && produced < maxChapters) {
     const current = stateOf(project);
     const nextChapter = Number(current.updated_through || 0) + 1;
-    if (nextChapter === 4 && Number(targetWords) >= 300000 && pilotState(project).status !== 'approved') {
-      try { approvePanel(project, config, options, run); }
-      catch (error) {
+    if (nextChapter === 4 && Number(targetWords) >= 300000) {
+      const smoke = smokeGate.validate(project, { 'min-chars': String(config.chapter_min_chars) });
+      if (!smoke.ok) {
+        stop(project, { code: 'SMOKE_GATE_PENDING', reason: JSON.stringify(smoke.errors) });
+        return { ok: false, command: 'run', status: 'paused', code: 'SMOKE_GATE_PENDING', reason: 'Three-chapter smoke gate has not passed', smoke, produced };
+      }
+      if (pilotState(project).status !== 'approved') {
+        try { approvePanel(project, config, options, run); }
+        catch (error) {
         stop(project, { code: error.code === 'HUMAN_REJECTION_ACTIVE' ? error.code : 'PILOT_GATE_PENDING', reason: error.message });
-        return { ok: false, command: 'run', status: 'paused', code: error.code || 'PILOT_GATE_PENDING', reason: error.message, panel: run.panel };
+          return { ok: false, command: 'run', status: 'paused', code: error.code || 'PILOT_GATE_PENDING', reason: error.message, panel: run.panel };
+        }
       }
     }
     try {
