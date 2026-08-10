@@ -322,8 +322,28 @@ function archivePreproductionArtifact(project, relative, reason) {
 
 function validatePreproductionNode(project, id) {
   if (id === 'breakdown') {
-    const report = require('./deep-breakdown-gate').validate(project);
-    if (!report.ok) throw new CliError('DEEP_BREAKDOWN_NODE_INVALID', 'Breakdown evidence is structurally incomplete', { errors: report.errors });
+    // Breakdown runs before feature-matrix. Validate only its own outputs;
+    // the full deep-breakdown gate also checks matrix/boundaries and would
+    // create a false dependency cycle here.
+    const gate = require('./deep-breakdown-gate');
+    const errors = [];
+    const poolFile = path.join(project, gate.FILES.pool);
+    const breakdownFile = path.join(project, gate.FILES.breakdown);
+    const pool = fs.existsSync(poolFile) ? fs.readFileSync(poolFile, 'utf8') : null;
+    const breakdown = fs.existsSync(breakdownFile) ? fs.readFileSync(breakdownFile, 'utf8') : null;
+    if (!pool) errors.push({ code: 'BENCHMARK_POOL_MISSING' });
+    else {
+      const rows = gate.activePoolRows(pool);
+      const ids = gate.benchmarkIds(rows.join('\n'));
+      if (rows.length < gate.MIN_BOOKS) errors.push({ code: 'BENCHMARK_POOL_TOO_SMALL', count: rows.length, minimum: gate.MIN_BOOKS });
+      if (ids.length < gate.MIN_BOOKS) errors.push({ code: 'BENCHMARK_IDS_INCOMPLETE', count: ids.length, minimum: gate.MIN_BOOKS });
+    }
+    if (!breakdown) errors.push({ code: 'BREAKDOWN_MISSING' });
+    else {
+      if (breakdown.trim().length < gate.MIN_BREAKDOWN_CHARS) errors.push({ code: 'DEEP_BREAKDOWN_TOO_THIN', chars: breakdown.trim().length, minimum: gate.MIN_BREAKDOWN_CHARS });
+      for (const item of gate.dimensionChecks(breakdown)) if (!item.ok) errors.push({ code: 'DEEP_BREAKDOWN_DIMENSION_MISSING', dimension: item.id });
+    }
+    if (errors.length) throw new CliError('DEEP_BREAKDOWN_NODE_INVALID', 'Breakdown evidence is structurally incomplete', { errors });
   }
   if (id === 'feature-matrix') {
     const dna = require('./book-dna').compile(project);

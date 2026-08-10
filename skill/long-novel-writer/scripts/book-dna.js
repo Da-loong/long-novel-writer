@@ -17,6 +17,15 @@ const OUTPUT = 'state/book-dna.json';
 const ACTIVE = /^(?:active|adopted|enabled|\u91c7\u7eb3|\u5df2\u91c7\u7eb3|\u542f\u7528)$/i;
 const PLACEHOLDER = /^(?:-|\u5f85\u586b\u5199|\u5f85\u8865\u5145|pending|todo|n\/a)$/i;
 const DIMENSIONS = new Set(['market', 'framework', 'plot', 'character', 'chapter', 'prose', 'retention']);
+const DIMENSION_ALIASES = {
+  '\u5e02\u573a\u627f\u8bfa': 'market', '\u5e02\u573a': 'market',
+  '\u6846\u67b6': 'framework',
+  '\u60c5\u8282\u63a8\u8fdb': 'plot',
+  '\u4eba\u7269\u5f15\u64ce': 'character',
+  '\u7ae0\u8282\u8282\u594f': 'chapter',
+  '\u6587\u98ce\u884c\u4e3a': 'prose',
+  '\u7559\u5b58\u673a\u5236': 'retention',
+};
 
 function argsOf(argv) {
   const args = {};
@@ -47,16 +56,17 @@ function projectOf(input) {
 
 function columnsOf(header) {
   const aliases = {
-    id: ['id', '\u7279\u5f81id', 'featureid'],
+    id: ['id', '\u7279\u5f81id', 'featureid', '\u673a\u5236id'],
     dimension: ['dimension', '\u7ef4\u5ea6'],
-    mechanism: ['mechanism', 'abstraction', '\u673a\u5236', '\u53ef\u590d\u7528\u673a\u5236'],
-    evidence: ['evidence', '\u8bc1\u636e', '\u8bc1\u636e\u6458\u8981'],
+    mechanism: ['mechanism', 'abstraction', '\u673a\u5236', '\u53ef\u590d\u7528\u673a\u5236', '\u62bd\u8c61\u673a\u5236\u63cf\u8ff0', '\u673a\u5236\u63cf\u8ff0'],
+    evidence: ['evidence', '\u8bc1\u636e', '\u8bc1\u636e\u6458\u8981', '\u8bc1\u636e\u5f15\u7528'],
     sources: ['sources', 'sourceids', '\u6807\u6746id', '\u6765\u6e90id'],
     scope: ['scope', '\u9002\u7528\u8303\u56f4'],
     status: ['status', '\u72b6\u6001'],
   };
   const normalized = header.map(normalHeader);
-  return Object.fromEntries(Object.entries(aliases).map(([key, values]) => [key, normalized.findIndex((value) => values.includes(value))]));
+  const find = (values) => normalized.findIndex((value) => values.includes(value) || values.some((alias) => alias.length > 1 && value.startsWith(alias)));
+  return Object.fromEntries(Object.entries(aliases).map(([key, values]) => [key, find(values)]));
 }
 
 function rowsOf(text) {
@@ -65,13 +75,17 @@ function rowsOf(text) {
     if (!lines[index].trim().startsWith('|')) continue;
     const header = cellsOf(lines[index]);
     const columns = columnsOf(header);
-    if (Object.values(columns).some((column) => column < 0)) continue;
+    // A compact matrix may omit scope/status because every row is explicitly
+    // an adopted, whole-book mechanism. Keep the strict five evidence fields
+    // while inferring those two safe defaults.
+    const required = ['id', 'dimension', 'mechanism', 'evidence', 'sources'];
+    if (required.some((name) => columns[name] < 0)) continue;
     const rows = [];
     for (let cursor = index + 2; cursor < lines.length && lines[cursor].trim().startsWith('|'); cursor++) {
       const cells = cellsOf(lines[cursor]);
       if (cells.every((cell) => /^:?-{3,}:?$/.test(cell))) continue;
       const field = (name) => cells[columns[name]] || '';
-      rows.push({ row: cursor + 1, id: field('id'), dimension: field('dimension'), mechanism: field('mechanism'), evidence: field('evidence'), sources: field('sources'), scope: field('scope'), status: field('status') });
+      rows.push({ row: cursor + 1, id: field('id'), dimension: field('dimension'), mechanism: field('mechanism'), evidence: field('evidence'), sources: field('sources'), scope: columns.scope >= 0 ? field('scope') : '全书', status: columns.status >= 0 ? field('status') : 'adopted' });
     }
     return rows;
   }
@@ -99,7 +113,8 @@ function compileData(text) {
     if (!ACTIVE.test(String(row.status || '').trim())) continue;
     if (!/^[A-Za-z][A-Za-z0-9_-]{1,63}$/.test(row.id)) { warnings.push({ code: 'BOOK_DNA_ID_INVALID', row: row.row, id: row.id }); continue; }
     if (ids.has(row.id)) { warnings.push({ code: 'BOOK_DNA_DUPLICATE_ID', row: row.row, id: row.id }); continue; }
-    const dimension = String(row.dimension || '').trim().toLowerCase();
+    const rawDimension = String(row.dimension || '').trim().toLowerCase();
+    const dimension = DIMENSION_ALIASES[rawDimension] || rawDimension;
     const sources = sourceIdsOf(row.sources);
     const scope = scopeOf(row.scope);
     if (!DIMENSIONS.has(dimension)) { warnings.push({ code: 'BOOK_DNA_DIMENSION_INVALID', row: row.row, id: row.id, dimension: row.dimension }); continue; }
